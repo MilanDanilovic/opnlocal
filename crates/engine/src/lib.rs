@@ -1,52 +1,28 @@
-//! opnlocal engine. Temporary bring-up probe; replaced by the real modules next.
+//! opnlocal engine: everything except the UI.
+//!
+//! - [`hardware`]: what this device has (memory, processor, graphics, storage)
+//! - [`catalog`]: the signed list of models we know how to run
+//! - [`fit`] and [`recommend`]: which of them fit, and which to suggest
+//! - [`download`]: resumable, verified downloads
+//! - [`llm`]: llama.cpp runtime (in-process, one worker thread)
+//! - [`chat`], [`bench`], [`docs`]: prompts and replies, measuring, attached documents
+//! - [`store`]: files on disk
+//! - [`engine`]: the facade the app talks to
 
-use serde::Serialize;
+pub mod bench;
+pub mod catalog;
+pub mod chat;
+pub mod docs;
+pub mod download;
+pub mod engine;
+pub mod fit;
+pub mod gguf;
+pub mod hardware;
+pub mod llm;
+pub mod recommend;
+pub mod store;
 
-#[derive(Serialize)]
-pub struct ProbeDevice {
-    pub name: String,
-    pub description: String,
-    pub backend: String,
-    pub kind: String,
-    pub memory_free: u64,
-    pub memory_total: u64,
-}
+pub use engine::{Engine, EngineError, Event};
 
-#[derive(Serialize)]
-pub struct Probe {
-    pub os: &'static str,
-    pub arch: &'static str,
-    pub devices: Vec<ProbeDevice>,
-}
-
-static BACKEND: std::sync::OnceLock<llama_cpp_2::llama_backend::LlamaBackend> =
-    std::sync::OnceLock::new();
-
-pub fn probe() -> Probe {
-    BACKEND.get_or_init(|| {
-        let b = llama_cpp_2::llama_backend::LlamaBackend::init().unwrap();
-        #[cfg(any(target_os = "windows", target_os = "linux"))]
-        if llama_cpp_2::list_llama_ggml_backend_devices().is_empty()
-            && let Ok(exe) = std::env::current_exe()
-        {
-            llama_cpp_2::llama_backend::load_backends_from_path(exe.parent().unwrap());
-        }
-        b
-    });
-    let devices = llama_cpp_2::list_llama_ggml_backend_devices()
-        .into_iter()
-        .map(|d| ProbeDevice {
-            name: d.name,
-            description: d.description,
-            backend: d.backend,
-            kind: format!("{:?}", d.device_type),
-            memory_free: d.memory_free as u64,
-            memory_total: d.memory_total as u64,
-        })
-        .collect();
-    Probe {
-        os: std::env::consts::OS,
-        arch: std::env::consts::ARCH,
-        devices,
-    }
-}
+/// The catalog compiled into the app, so it works offline from the first launch.
+pub const BUILTIN_CATALOG: &[u8] = include_bytes!("../../../catalog/catalog.json");

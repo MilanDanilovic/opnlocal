@@ -1,0 +1,17 @@
+[package]
+name = "catalog-tool"
+description = "Builds, signs and verifies the opnlocal model catalog"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+opnlocal-engine = { path = "../engine" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+tokio-util = "0.7"
+ed25519-dalek = { version = "3", features = ["pkcs8", "pem"] }
+base64 = "0.22"

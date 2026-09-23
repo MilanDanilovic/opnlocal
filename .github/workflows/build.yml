@@ -39,7 +39,10 @@ jobs:
         working-directory: app
         run: |
           npm ci
-          npx tauri build --bundles appimage,deb
+          # linuxdeploy must find the llama.cpp shared libraries staged by build.rs.
+          export LD_LIBRARY_PATH="$PWD/src-tauri/libs:$LD_LIBRARY_PATH"
+          export NO_STRIP=true
+          npx tauri build --bundles appimage,deb --verbose
       - uses: actions/upload-artifact@v4
         with:
           name: opnlocal-linux

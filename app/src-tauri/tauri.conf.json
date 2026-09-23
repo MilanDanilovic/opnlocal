@@ -42,9 +42,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": {
-      "libs/": "./"
-    },
     "windows": {
       "nsis": {
         "installMode": "currentUser"

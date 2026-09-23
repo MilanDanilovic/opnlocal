@@ -8,8 +8,30 @@ publish.workspace = true
 
 [dependencies]
 llama-cpp-2 = { version = "=0.1.157", default-features = false, features = ["common"] }
+# Only for a few raw constants (log levels); features come from llama-cpp-2 below.
+llama-cpp-sys-2 = { version = "=0.1.157", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+thiserror = "2"
+sha2 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+ed25519-dalek = "3"
+# rustls + bundled Mozilla roots: identical TLS behavior on every platform, no JNI setup on Android.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "http2"] }
+tokio = { version = "1", features = ["fs", "io-util", "rt", "sync", "time", "macros"] }
+tokio-util = "0.7"
+futures-util = "0.3"
+minijinja = { version = "2.24", features = ["json", "loop_controls"] }
+minijinja-contrib = { version = "2.24", features = ["pycompat"] }
+encoding_rs = "0.8"
+sysinfo = { version = "0.39", default-features = false, features = ["system", "disk"] }
+fs4 = "1.1"
+zip = { version = "8", default-features = false, features = ["deflate"] }
+quick-xml = "0.42"
+pdf-extract = "0.12"
+ts-rs = { version = "12", features = ["serde-compat"] }
+uuid = { version = "1", features = ["v4"] }
 
 # GPU backend per platform (see docs/DECISIONS.md). Android stays CPU-only.
 # Windows/Linux load backends at runtime: the best CPU variant for this machine,
@@ -22,6 +44,9 @@ llama-cpp-2 = { version = "=0.1.157", default-features = false, features = ["com
 
 [target.'cfg(target_os = "android")'.dependencies]
 llama-cpp-2 = { version = "=0.1.157", default-features = false, features = ["common", "android-static-stdcxx"] }
+libc = "0.2"
 
 [dev-dependencies]
-encoding_rs = "0.8"
+tempfile = "3"
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "macros"] }
