@@ -94,11 +94,16 @@ jobs:
       - name: Build for the iOS simulator
         working-directory: app
         run: npx tauri ios build --debug --target aarch64-sim
+      - name: Run in the simulator (self-test with a tiny model)
+        run: bash scripts/ios-simulator-test.sh
       - name: Build unsigned device app (.ipa for sideloading)
-        run: bash scripts/ios-build-unsigned-ipa.sh
+        working-directory: app
+        run: npx tauri ios build --target aarch64 --no-sign
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: opnlocal-ios
           path: |
-            target/ios/opnlocal-unsigned.ipa
-            app/src-tauri/gen/apple/build/**/*.app
+            app/src-tauri/gen/apple/build/arm64/*.ipa
+            target/ios/simulator.png
+            target/ios/selftest.log

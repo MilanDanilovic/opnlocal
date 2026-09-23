@@ -239,6 +239,9 @@ pub fn run() {
             .map_err(|e| e.to_string())?;
             let engine = Arc::new(engine);
             app.manage(engine.clone());
+            if let Ok(model) = std::env::var("OPNLOCAL_SELFTEST") {
+                self_test(engine.clone(), model);
+            }
             // Daily model-list check, only if the user allows it (the engine decides).
             tauri::async_runtime::spawn(async move {
                 let _ = engine.refresh_catalog(false).await;
@@ -270,6 +273,51 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running opnlocal");
+}
+
+/// CI smoke test for platforms we can only run in a simulator (iOS): prints the detected device
+/// and, if `model` is a GGUF path, a short real generation. Lines start with `OPNLOCAL_SELFTEST`.
+fn self_test(engine: Arc<Engine>, model: String) {
+    use opnlocal_engine::llm::{GenerateRequest, GpuChoice, LoadOptions, Runtime, SamplingParams};
+    std::thread::spawn(move || {
+        let device = engine.detect();
+        println!("OPNLOCAL_SELFTEST device {}", serde_json::to_string(&device).unwrap_or_default());
+        let path = std::path::PathBuf::from(&model);
+        if !path.is_file() {
+            println!("OPNLOCAL_SELFTEST no-model");
+            return;
+        }
+        let gpu = if device.gpus.is_empty() { GpuChoice::None } else { GpuChoice::All };
+        let rt = Runtime::start(None);
+        let loaded = rt.load(
+            LoadOptions { path, context: 512, ubatch: 128, gpu, threads: None, crash_marker: None },
+            |_| {},
+        );
+        match loaded {
+            Ok((info, _)) => println!("OPNLOCAL_SELFTEST loaded gpu_layers={} load_ms={}", info.gpu_layers, info.load_ms),
+            Err(e) => {
+                println!("OPNLOCAL_SELFTEST FAILED load: {e}");
+                return;
+            }
+        }
+        let text = Arc::new(std::sync::Mutex::new(String::new()));
+        let t2 = text.clone();
+        let req = GenerateRequest {
+            prompt: "<s>Once upon a time".into(),
+            max_tokens: 32,
+            sampling: SamplingParams { temperature: 0.0, top_p: 1.0, top_k: 1, min_p: 0.0, seed: 1 },
+            stop: Default::default(),
+        };
+        match rt.generate(req, move |p| t2.lock().unwrap().push_str(p)) {
+            Ok(s) => println!(
+                "OPNLOCAL_SELFTEST OK tokens={} tokens_per_second={:.1} text={:?}",
+                s.generated_tokens,
+                s.generation_tokens_per_second().unwrap_or(0.0),
+                text.lock().unwrap()
+            ),
+            Err(e) => println!("OPNLOCAL_SELFTEST FAILED generate: {e}"),
+        }
+    });
 }
 
 #[cfg(test)]
