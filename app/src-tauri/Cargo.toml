@@ -1,0 +1,26 @@
+[package]
+name = "opnlocal"
+description = "opnlocal desktop and mobile app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+# staticlib/cdylib are needed for the iOS and Android builds.
+name = "opnlocal_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5", features = [] }
+
+[dependencies]
+opnlocal-engine = { path = "../../crates/engine" }
+tauri = { version = "2.11", features = [] }
+tauri-plugin-dialog = "2.7"
+tauri-plugin-opener = "2.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Direct dependency only so build.rs receives DEP_LLAMA_* metadata and can ship
+# the llama.cpp shared libraries next to the executable. Features come from the engine.
+llama-cpp-sys-2 = { version = "=0.1.157", default-features = false }

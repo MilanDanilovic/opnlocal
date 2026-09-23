@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#14897f"/>
+      <stop offset="1" stop-color="#0b5f58"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="208" fill="url(#bg)"/>
+  <!-- the open ring: "opn" -->
+  <circle cx="512" cy="512" r="236" fill="none" stroke="#ffffff" stroke-width="88"/>
+  <!-- the dot inside: "local", your device -->
+  <circle cx="512" cy="512" r="74" fill="#ffffff"/>
+</svg>

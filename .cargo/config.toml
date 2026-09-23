@@ -1,0 +1,7 @@
+# Windows: link the C runtime statically (exe and llama.cpp DLLs), so users
+# don't need the Visual C++ Redistributable installed.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[env]
+LLAMA_STATIC_CRT = "1"

@@ -1,0 +1,101 @@
+# Builds installable packages for the platforms that can't be built on the Windows dev machine.
+# Manual trigger only: macOS minutes are expensive on a private repo.
+name: build
+
+on:
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: "Comma-separated: linux,macos,ios,windows,android"
+        default: "linux,macos,ios"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux:
+    if: contains(inputs.platforms, 'linux')
+    # Oldest supported baseline (glibc 2.35) so the build runs on Ubuntu 22.04+.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: System packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf file libclang-dev
+      - name: Vulkan SDK (headers + glslc)
+        run: |
+          V=1.4.321.1
+          curl -sSL -o vk.tar.xz "https://sdk.lunarg.com/sdk/download/$V/linux/vulkansdk-linux-x86_64-$V.tar.xz"
+          mkdir -p "$HOME/vulkan" && tar -xf vk.tar.xz -C "$HOME/vulkan"
+          echo "VULKAN_SDK=$HOME/vulkan/$V/x86_64" >> "$GITHUB_ENV"
+          echo "$HOME/vulkan/$V/x86_64/bin" >> "$GITHUB_PATH"
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        working-directory: app
+        run: |
+          npm ci
+          npx tauri build --bundles appimage,deb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opnlocal-linux
+          path: |
+            target/release/bundle/appimage/*.AppImage
+            target/release/bundle/deb/*.deb
+
+  macos:
+    if: contains(inputs.platforms, 'macos')
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: brew install cmake
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        working-directory: app
+        run: |
+          npm ci
+          npx tauri build --bundles app,dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opnlocal-macos
+          path: target/release/bundle/dmg/*.dmg
+
+  ios:
+    if: contains(inputs.platforms, 'ios')
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: brew install cmake xcodegen
+      - run: xcodebuild -version
+      - uses: Swatinem/rust-cache@v2
+      - name: Generate Xcode project
+        working-directory: app
+        run: |
+          npm ci
+          npx tauri ios init --ci
+          bash ../scripts/ios-patch-project.sh
+      - name: Build for the iOS simulator
+        working-directory: app
+        run: npx tauri ios build --debug --target aarch64-sim
+      - name: Build unsigned device app (.ipa for sideloading)
+        run: bash scripts/ios-build-unsigned-ipa.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opnlocal-ios
+          path: |
+            target/ios/opnlocal-unsigned.ipa
+            app/src-tauri/gen/apple/build/**/*.app

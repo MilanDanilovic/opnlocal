@@ -1,0 +1,27 @@
+[package]
+name = "opnlocal-engine"
+description = "opnlocal core: hardware detection, catalog, recommendations, downloads, benchmark and chat on llama.cpp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+llama-cpp-2 = { version = "=0.1.157", default-features = false, features = ["common"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# GPU backend per platform (see docs/DECISIONS.md). Android stays CPU-only.
+# Windows/Linux load backends at runtime: the best CPU variant for this machine,
+# plus Vulkan only if a working driver exists.
+[target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
+llama-cpp-2 = { version = "=0.1.157", default-features = false, features = ["common", "vulkan", "dynamic-backends"] }
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+llama-cpp-2 = { version = "=0.1.157", default-features = false, features = ["common", "metal"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+llama-cpp-2 = { version = "=0.1.157", default-features = false, features = ["common", "android-static-stdcxx"] }
+
+[dev-dependencies]
+encoding_rs = "0.8"

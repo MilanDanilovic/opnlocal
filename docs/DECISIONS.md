@@ -1,0 +1,73 @@
+# opnlocal: architecture decision (v1)
+
+Status: accepted, 2026-09-24. Research notes behind each choice are summarized at the end.
+
+## What we're building
+
+One app that tells people which AI models their device can run, downloads one, measures it, and lets
+them chat with it. Everything runs on the device. The user never needs to know what VRAM,
+quantization or an inference engine is.
+
+## Decision
+
+| Concern | Choice | Why |
+|---|---|---|
+| Inference runtime | **llama.cpp** (GGUF), pinned via `llama-cpp-2 =0.1.157` | The only runtime that runs the *same model file* on Windows, macOS, Linux, Android and iOS. It has device and memory enumeration, load progress and perf counters built in. MIT license. |
+| App shell | **Tauri 2** | One web UI on all 5 platforms, a Rust core in the same process, and small native plugins where needed. MIT/Apache license. |
+| UI | **Svelte 5 + TypeScript** (Vite) | Least code for a streaming chat UI. Plain semantic HTML makes it accessible. |
+| Core logic | One Rust crate, `crates/engine`, with no UI dependency | Detection, catalog, fit/recommendation, downloads, benchmark, chat, storage. Unit-testable without a window. |
+| Process model | **Model runs inside the app on every platform** | Phones can't spawn processes. No local server means no local API to secure. |
+| GPU backend | Windows/Linux: CPU + Vulkan, loaded at runtime. macOS/iOS: Metal. Android: CPU only. | Vulkan covers NVIDIA, AMD and Intel with one build. Phone GPUs rarely beat the CPU for replies and crash often. |
+| CPU code | Windows/Linux: `GGML_CPU_ALL_VARIANTS` (best variant picked at runtime). Android: `armv8.2-a+dotprod+fp16` build, and the app refuses cleanly on older CPUs. | Fast on modern hardware, and never crashes with "illegal instruction" on older hardware. |
+| Model catalog | Signed JSON (ed25519), bundled in the app, refreshed at most daily from the public repo `MilanDanilovic/opnlocal-catalog` | Works offline from the first launch. Can be updated without an app release. Can't be tampered with. |
+| Model files | Downloaded from Hugging Face at a pinned commit and verified by sha256 | No login needed; nothing is redistributed by us. |
+| Storage | Models in the app data folder. Conversations and settings as JSON files. | Nothing to migrate, nothing to corrupt at scale. |
+| Network | Only (1) catalog refresh, (2) model downloads the user starts | No analytics, crash reports or update pings. |
+| Code license | All rights reserved (private repo). Permissive dependencies only. | Opening it up later stays easy. |
+
+## Platform support matrix (v1)
+
+| | Windows | macOS | Linux | Android | iOS |
+|---|---|---|---|---|---|
+| Minimum | 10 (x64) | 13, Apple Silicon | x64, glibc 2.35 (Ubuntu 22.04+) | 9 (API 28), arm64-v8a, dotprod CPU | 17 |
+| GPU | Vulkan (NVIDIA/AMD/Intel) | Metal | Vulkan | none (CPU) | Metal |
+| Package | NSIS `.exe` (per-user, no admin) | `.dmg` (unsigned) | AppImage + `.deb` | `.apk` + `.aab` | unsigned `.ipa` (sideload) |
+| Built on | this PC | GitHub Actions (macOS) | Docker / GitHub Actions | this PC | GitHub Actions (macOS) |
+| Tested on real hardware | yes (Ryzen 7700X + RX 7800 XT) | no (CI only) | Docker/CI only | emulator + owner's phone | simulator (CI) + owner's iPhone via Sideloadly |
+| Signing | none (SmartScreen warning) | none (Gatekeeper warning) | n/a | self-generated key | none; re-signed by Sideloadly with a free Apple ID (7 days) |
+
+## Product rules that shape the code
+
+- **Never invent performance numbers.** Before measuring, show only *fit* ("Runs comfortably",
+  "Runs, but tight", "Too big for this device") and where it runs (graphics chip or processor).
+  Speed appears only after the benchmark and is labeled "Measured on this device". Words per second
+  are counted from the text actually produced.
+- **Always set the context size explicitly.** llama.cpp's default (the model's full trained length)
+  can allocate gigabytes.
+- **Thinking off by default.** A per-chat "Think harder" switch turns it on; "Show thinking" reveals it.
+- **One download at a time.** It resumes after interruption (HTTP Range) and is verified by sha256 at
+  the end. Cancel deletes the partial file.
+- **GPU crash guard.** A marker file is written before any GPU load. If the app dies during the load,
+  the next launch uses the CPU and says why.
+
+## Known risks
+
+1. Tauri's iOS toolchain breaks with new Xcode releases (tauri#15066, tauri#16121). Mitigation: iOS
+   build in CI first, with Xcode pinned. If the binding fails, fall back to bindgen against the
+   official llama.cpp xcframework.
+2. `llama-cpp-2` has little iOS evidence. Same mitigation.
+3. Out-of-memory kills on phones. Mitigation: our own memory budget per platform (see
+   `engine::fit`), small context sizes, and models that don't fit are never offered.
+4. Tauri 3 is in alpha; we stay on 2.x.
+
+## Research summary (2026-09-23)
+
+- llama.cpp v0.5.0 / b11149. Stable semver tags since 2026-08. Now stewarded by Hugging Face (ggml.ai
+  joined HF in 2026-02). MIT.
+- Tauri 2.11.x stable. Mobile has no process spawning, so inference must be in-process there.
+- Alternatives considered: Flutter + llamadart (young binding with one maintainer), Flutter + Rust
+  via flutter_rust_bridge (more moving parts), React Native + llama.rn (no Linux desktop), LiteRT-LM
+  (curated model formats only), MLC LLM (per-target compilation).
+- Catalog models (all ungated on Hugging Face): Qwen3.5 0.8B/2B/4B/9B, Gemma 4 E2B/12B (Apache-2.0
+  since 2026-04), gpt-oss 20B (Apache-2.0), Qwen3.6 35B-A3B (Apache-2.0), LFM2.5 2.6B (LFM Open
+  License 1.0: free under US$10M annual revenue; accepted in-app).
