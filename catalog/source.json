@@ -1,0 +1,158 @@
+{
+  "schema": 1,
+  "version": 1,
+  "published": "2026-09-24",
+  "models": [
+    {
+      "id": "qwen3.5-0.8b",
+      "name": "Qwen3.5 0.8B",
+      "publisher": "Alibaba (Qwen)",
+      "summary": "Tiny and quick. Fine for simple questions, short rewrites and quick facts, even on older phones. Makes more mistakes than bigger models.",
+      "scores": { "everyday": 1, "coding": 1, "writing": 1, "documents": 1 },
+      "license": { "id": "Apache-2.0", "name": "Apache License 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0", "requires_acceptance": false, "summary": null },
+      "file": { "repo": "ggml-org/Qwen3.5-0.8B-GGUF", "revision": "8fea620810c4afa23dd6443f999a48574c1611a3", "path": "Qwen3.5-0.8B-Q8_0.gguf" },
+      "chat": {
+        "reasoning": "think_tags",
+        "thinking": { "kind": "template_flag", "variable": "enable_thinking" },
+        "sampling": { "temperature": 0.7, "top_p": 0.8, "top_k": 20, "min_p": 0.0 },
+        "thinking_sampling": { "temperature": 0.6, "top_p": 0.95, "top_k": 20, "min_p": 0.0 }
+      },
+      "min_app_version": "0.1.0"
+    },
+    {
+      "id": "qwen3.5-2b",
+      "name": "Qwen3.5 2B",
+      "publisher": "Alibaba (Qwen)",
+      "summary": "A small all-rounder for phones. Handles everyday questions, short pieces of writing and summaries of short documents.",
+      "scores": { "everyday": 2, "coding": 1, "writing": 2, "documents": 2 },
+      "license": { "id": "Apache-2.0", "name": "Apache License 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0", "requires_acceptance": false, "summary": null },
+      "file": { "repo": "unsloth/Qwen3.5-2B-GGUF", "revision": "f6d5376be1edb4d416d56da11e5397a961aca8ae", "path": "Qwen3.5-2B-Q4_K_M.gguf" },
+      "chat": {
+        "reasoning": "think_tags",
+        "thinking": { "kind": "template_flag", "variable": "enable_thinking" },
+        "sampling": { "temperature": 0.7, "top_p": 0.8, "top_k": 20, "min_p": 0.0 },
+        "thinking_sampling": { "temperature": 0.6, "top_p": 0.95, "top_k": 20, "min_p": 0.0 }
+      },
+      "min_app_version": "0.1.0"
+    },
+    {
+      "id": "lfm2.5-2.6b",
+      "name": "LFM2.5 2.6B",
+      "publisher": "Liquid AI",
+      "summary": "Made to be fast on phones. Good at everyday questions and short tasks.",
+      "scores": { "everyday": 3, "coding": 1, "writing": 2, "documents": 2 },
+      "license": {
+        "id": "LFM-Open-1.0",
+        "name": "LFM Open License v1.0",
+        "url": "https://huggingface.co/LiquidAI/LFM2.5-2.6B/blob/main/LICENSE",
+        "requires_acceptance": true,
+        "summary": "Free for personal and non-commercial use. A business may use it commercially only if its yearly revenue is under US$10 million. Registered non-profits may use it for non-commercial and research purposes regardless of size."
+      },
+      "file": { "repo": "LiquidAI/LFM2.5-2.6B-GGUF", "revision": "e7caca5d835a3901a8e0d63e94009429bafafdfc", "path": "LFM2.5-2.6B-Q4_K_M.gguf" },
+      "chat": {
+        "reasoning": "think_tags",
+        "thinking": { "kind": "unsupported" },
+        "sampling": { "temperature": 0.1, "top_p": 1.0, "top_k": 50, "min_p": 0.0 },
+        "thinking_sampling": null
+      },
+      "min_app_version": "0.1.0"
+    },
+    {
+      "id": "qwen3.5-4b",
+      "name": "Qwen3.5 4B",
+      "publisher": "Alibaba (Qwen)",
+      "summary": "A capable all-rounder: everyday help, code and documents. Fits newer phones and most laptops.",
+      "scores": { "everyday": 3, "coding": 3, "writing": 3, "documents": 3 },
+      "license": { "id": "Apache-2.0", "name": "Apache License 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0", "requires_acceptance": false, "summary": null },
+      "file": { "repo": "unsloth/Qwen3.5-4B-GGUF", "revision": "e87f176479d0855a907a41277aca2f8ee7a09523", "path": "Qwen3.5-4B-Q4_K_M.gguf" },
+      "chat": {
+        "reasoning": "think_tags",
+        "thinking": { "kind": "template_flag", "variable": "enable_thinking" },
+        "sampling": { "temperature": 0.7, "top_p": 0.8, "top_k": 20, "min_p": 0.0 },
+        "thinking_sampling": { "temperature": 0.6, "top_p": 0.95, "top_k": 20, "min_p": 0.0 }
+      },
+      "min_app_version": "0.1.0"
+    },
+    {
+      "id": "gemma-4-e2b",
+      "name": "Gemma 4 E2B",
+      "publisher": "Google",
+      "summary": "Google's small model. Natural writing and good with many languages. Fits newer phones.",
+      "scores": { "everyday": 3, "coding": 2, "writing": 3, "documents": 2 },
+      "license": { "id": "Apache-2.0", "name": "Apache License 2.0", "url": "https://ai.google.dev/gemma/docs/gemma_4_license", "requires_acceptance": false, "summary": null },
+      "file": { "repo": "unsloth/gemma-4-E2B-it-GGUF", "revision": "0314792d7f1f7e229411f620751375812bb9faf2", "path": "gemma-4-E2B-it-Q4_K_M.gguf" },
+      "chat": {
+        "reasoning": "gemma_channel",
+        "thinking": { "kind": "template_flag", "variable": "enable_thinking" },
+        "sampling": { "temperature": 1.0, "top_p": 0.95, "top_k": 64, "min_p": 0.0 },
+        "thinking_sampling": null
+      },
+      "min_app_version": "0.1.0"
+    },
+    {
+      "id": "qwen3.5-9b",
+      "name": "Qwen3.5 9B",
+      "publisher": "Alibaba (Qwen)",
+      "summary": "Strong for its size, and especially good with long documents. Best on a laptop or desktop with 16 GB of memory.",
+      "scores": { "everyday": 4, "coding": 4, "writing": 4, "documents": 5 },
+      "license": { "id": "Apache-2.0", "name": "Apache License 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0", "requires_acceptance": false, "summary": null },
+      "file": { "repo": "unsloth/Qwen3.5-9B-GGUF", "revision": "3885219b6810b007914f3a7950a8d1b469d598a5", "path": "Qwen3.5-9B-Q4_K_M.gguf" },
+      "chat": {
+        "reasoning": "think_tags",
+        "thinking": { "kind": "template_flag", "variable": "enable_thinking" },
+        "sampling": { "temperature": 0.7, "top_p": 0.8, "top_k": 20, "min_p": 0.0 },
+        "thinking_sampling": { "temperature": 0.6, "top_p": 0.95, "top_k": 20, "min_p": 0.0 }
+      },
+      "min_app_version": "0.1.0"
+    },
+    {
+      "id": "gemma-4-12b",
+      "name": "Gemma 4 12B",
+      "publisher": "Google",
+      "summary": "Google's mid-size model. Writes naturally, is good at code, and handles many languages.",
+      "scores": { "everyday": 4, "coding": 4, "writing": 5, "documents": 4 },
+      "license": { "id": "Apache-2.0", "name": "Apache License 2.0", "url": "https://ai.google.dev/gemma/docs/gemma_4_license", "requires_acceptance": false, "summary": null },
+      "file": { "repo": "google/gemma-4-12B-it-qat-q4_0-gguf", "revision": "29d097773436b69ff9feafd636ab4cf873786537", "path": "gemma-4-12b-it-qat-q4_0.gguf" },
+      "chat": {
+        "reasoning": "gemma_channel",
+        "thinking": { "kind": "template_flag", "variable": "enable_thinking" },
+        "sampling": { "temperature": 1.0, "top_p": 0.95, "top_k": 64, "min_p": 0.0 },
+        "thinking_sampling": null
+      },
+      "min_app_version": "0.1.0"
+    },
+    {
+      "id": "gpt-oss-20b",
+      "name": "gpt-oss 20B",
+      "publisher": "OpenAI",
+      "summary": "OpenAI's open model. It always thinks before answering, so it's good at tricky questions and code, but takes longer to start replying.",
+      "scores": { "everyday": 4, "coding": 5, "writing": 3, "documents": 4 },
+      "license": { "id": "Apache-2.0", "name": "Apache License 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0", "requires_acceptance": false, "summary": null },
+      "file": { "repo": "ggml-org/gpt-oss-20b-GGUF", "revision": "ef9b12f2ff56c69cf32153a02784e7a3c88bf524", "path": "gpt-oss-20b-MXFP4.gguf" },
+      "chat": {
+        "reasoning": "harmony",
+        "thinking": { "kind": "always_on", "variable": "reasoning_effort", "normal": "low", "harder": "high" },
+        "sampling": { "temperature": 1.0, "top_p": 1.0, "top_k": 0, "min_p": 0.0 },
+        "thinking_sampling": null,
+        "template_vars": { "model_identity": "You are gpt-oss, an open-weight model by OpenAI, running privately on the user's own device." }
+      },
+      "min_app_version": "0.1.0"
+    },
+    {
+      "id": "qwen3.6-35b-a3b",
+      "name": "Qwen3.6 35B",
+      "publisher": "Alibaba (Qwen)",
+      "summary": "The strongest model here, for code, long documents and hard questions. Needs 32 GB of memory or a large graphics card.",
+      "scores": { "everyday": 5, "coding": 5, "writing": 5, "documents": 5 },
+      "license": { "id": "Apache-2.0", "name": "Apache License 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0", "requires_acceptance": false, "summary": null },
+      "file": { "repo": "ggml-org/Qwen3.6-35B-A3B-GGUF", "revision": "baec3ebee244827cda0f4557eafa8b28f7545fa6", "path": "Qwen3.6-35B-A3B-Q4_K_M.gguf" },
+      "chat": {
+        "reasoning": "think_tags",
+        "thinking": { "kind": "template_flag", "variable": "enable_thinking" },
+        "sampling": { "temperature": 0.7, "top_p": 0.8, "top_k": 20, "min_p": 0.0 },
+        "thinking_sampling": { "temperature": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0 }
+      },
+      "min_app_version": "0.1.0"
+    }
+  ]
+}

@@ -516,13 +516,20 @@ fn sampler(p: &SamplingParams) -> LlamaSampler {
     if p.temperature <= 0.0 {
         return LlamaSampler::greedy();
     }
-    LlamaSampler::chain_simple([
-        LlamaSampler::top_k(p.top_k.max(1)),
-        LlamaSampler::top_p(p.top_p.clamp(0.01, 1.0), 1),
-        LlamaSampler::min_p(p.min_p.max(0.0), 1),
-        LlamaSampler::temp(p.temperature),
-        LlamaSampler::dist(p.seed),
-    ])
+    let mut chain = Vec::new();
+    // top_k 0 means "no limit" (gpt-oss recommends sampling from the full distribution).
+    if p.top_k > 0 {
+        chain.push(LlamaSampler::top_k(p.top_k));
+    }
+    if p.top_p < 1.0 {
+        chain.push(LlamaSampler::top_p(p.top_p.max(0.01), 1));
+    }
+    if p.min_p > 0.0 {
+        chain.push(LlamaSampler::min_p(p.min_p, 1));
+    }
+    chain.push(LlamaSampler::temp(p.temperature));
+    chain.push(LlamaSampler::dist(p.seed));
+    LlamaSampler::chain_simple(chain)
 }
 
 fn generate(

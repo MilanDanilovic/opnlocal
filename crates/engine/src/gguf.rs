@@ -202,12 +202,32 @@ impl Header {
         }
     }
 
-    /// Conservative memory estimate from metadata alone (imported models).
+    /// Which layers use sliding-window attention: from `sliding_window_pattern` (true = SWA),
+    /// or llama.cpp's hard-coded layout for architectures that don't store it.
+    fn swa_layers(&self, n_layers: u64) -> Vec<bool> {
+        let n = n_layers as usize;
+        if self.arch_u64("attention.sliding_window").is_none() {
+            return vec![false; n];
+        }
+        let arch = self.architecture().unwrap_or_default();
+        match self.get(&format!("{arch}.attention.sliding_window_pattern")) {
+            Some(Value::Array(items)) => {
+                let mut v: Vec<bool> = items.iter().map(|x| matches!(x, Value::Bool(true))).collect();
+                v.resize(n, false);
+                v
+            }
+            // gpt-oss alternates: even layers are sliding-window (llama.cpp's `set_swa_pattern(2)`).
+            _ if arch == "gpt-oss" => (0..n).map(|i| i % 2 == 0).collect(),
+            // Unknown layout: count every layer as full attention (overestimates, never under).
+            _ => vec![false; n],
+        }
+    }
+
+    /// Memory estimate from metadata alone (f16 KV cache).
     ///
-    /// Assumes an f16 KV cache on every attention layer; hybrid/recurrent layouts are
-    /// recognized where the metadata says so (`full_attention_interval`, zero KV heads).
-    /// Sliding-window layers are counted as full layers when their pattern is unknown, which
-    /// overestimates rather than underestimates.
+    /// Recognizes hybrid/recurrent layouts (`full_attention_interval`, zero KV heads),
+    /// sliding-window layers (their cache stops at the window), and layers that share an
+    /// earlier layer's cache (`shared_kv_layers`). When the layout is unknown it overestimates.
     pub fn memory_profile(&self, file_size: u64) -> MemoryProfile {
         let n_layers = self.arch_u64("block_count").unwrap_or(0);
         let n_embd = self.arch_u64("embedding_length").unwrap_or(0);
@@ -216,6 +236,8 @@ impl Header {
         let head_dim = n_embd / n_head;
         let k_len = self.arch_u64("attention.key_length").unwrap_or(head_dim);
         let v_len = self.arch_u64("attention.value_length").unwrap_or(head_dim);
+        let k_swa = self.arch_u64("attention.key_length_swa").unwrap_or(k_len);
+        let v_swa = self.arch_u64("attention.value_length_swa").unwrap_or(v_len);
         let mut kv_heads = self.per_layer("attention.head_count_kv", n_layers);
         if kv_heads.is_empty() {
             kv_heads = vec![n_head; n_layers as usize];
@@ -228,7 +250,23 @@ impl Header {
                 }
             }
         }
-        let kv_per_token: u64 = kv_heads.iter().map(|h| h * (k_len + v_len) * 2).sum();
+        // The last `shared_kv_layers` layers reuse earlier layers' cache (Gemma 3n/4).
+        let shared = self.arch_u64("attention.shared_kv_layers").unwrap_or(0) as usize;
+        let own = kv_heads.len().saturating_sub(shared);
+        let swa = self.swa_layers(n_layers);
+        let (mut kv_per_token, mut swa_per_token) = (0u64, 0u64);
+        for (i, h) in kv_heads.iter().take(own).enumerate() {
+            if swa.get(i).copied().unwrap_or(false) {
+                swa_per_token += h * (k_swa + v_swa) * 2;
+            } else {
+                kv_per_token += h * (k_len + v_len) * 2;
+            }
+        }
+        let swa_window = if swa_per_token > 0 {
+            self.arch_u64("attention.sliding_window").unwrap_or(0) as u32
+        } else {
+            0
+        };
         let n_vocab = match self.get("tokenizer.ggml.tokens") {
             Some(Value::ArrayLen(n)) => *n,
             Some(Value::Array(a)) => a.len() as u64,
@@ -237,8 +275,8 @@ impl Header {
         MemoryProfile {
             weights_bytes: file_size,
             kv_bytes_per_token: kv_per_token,
-            swa_kv_bytes_per_token: 0,
-            swa_window: 0,
+            swa_kv_bytes_per_token: swa_per_token,
+            swa_window,
             // Recurrent state is small but unknown here; budget 64 MiB to be safe.
             fixed_bytes: 64 * 1024 * 1024,
             // Logits dominate: vocab × 4 bytes per micro-batch token, plus activations.
@@ -344,6 +382,56 @@ pub(crate) mod tests {
         ]);
         let p = read(bytes.as_slice()).unwrap().memory_profile(1);
         assert_eq!(p.kv_bytes_per_token, 2 * 8 * (64 + 64) * 2);
+    }
+
+    fn bool_array(items: &[bool]) -> Vec<u8> {
+        let mut b = 7u32.to_le_bytes().to_vec();
+        b.extend((items.len() as u64).to_le_bytes());
+        b.extend(items.iter().map(|&x| x as u8));
+        b
+    }
+
+    #[test]
+    fn gemma_style_sliding_window_and_shared_layers() {
+        // Gemma-4-E2B-like: 35 layers, last 20 share KV; of the first 15, every 5th is global.
+        let pattern: Vec<bool> = (0..35).map(|i| i % 5 != 4).collect();
+        let bytes = header_bytes(&[
+            ("general.architecture", 8, s("gemma4")),
+            ("gemma4.block_count", 4, u32v(35)),
+            ("gemma4.embedding_length", 4, u32v(1536)),
+            ("gemma4.attention.head_count", 4, u32v(8)),
+            ("gemma4.attention.head_count_kv", 4, u32v(1)),
+            ("gemma4.attention.key_length", 4, u32v(512)),
+            ("gemma4.attention.value_length", 4, u32v(512)),
+            ("gemma4.attention.key_length_swa", 4, u32v(256)),
+            ("gemma4.attention.value_length_swa", 4, u32v(256)),
+            ("gemma4.attention.sliding_window", 4, u32v(512)),
+            ("gemma4.attention.sliding_window_pattern", 9, bool_array(&pattern)),
+            ("gemma4.attention.shared_kv_layers", 4, u32v(20)),
+        ]);
+        let p = read(bytes.as_slice()).unwrap().memory_profile(1);
+        // 3 global layers × 1 head × 1024 × 2 bytes; 12 SWA layers × 512 × 2 bytes.
+        assert_eq!(p.kv_bytes_per_token, 6 * 1024);
+        assert_eq!(p.swa_kv_bytes_per_token, 12 * 1024);
+        assert_eq!(p.swa_window, 512);
+    }
+
+    #[test]
+    fn gpt_oss_alternates_sliding_window_layers() {
+        let bytes = header_bytes(&[
+            ("general.architecture", 8, s("gpt-oss")),
+            ("gpt-oss.block_count", 4, u32v(24)),
+            ("gpt-oss.embedding_length", 4, u32v(2880)),
+            ("gpt-oss.attention.head_count", 4, u32v(64)),
+            ("gpt-oss.attention.head_count_kv", 4, u32v(8)),
+            ("gpt-oss.attention.key_length", 4, u32v(64)),
+            ("gpt-oss.attention.value_length", 4, u32v(64)),
+            ("gpt-oss.attention.sliding_window", 4, u32v(128)),
+        ]);
+        let p = read(bytes.as_slice()).unwrap().memory_profile(1);
+        assert_eq!(p.kv_bytes_per_token, 24 * 1024);
+        assert_eq!(p.swa_kv_bytes_per_token, 24 * 1024);
+        assert_eq!(p.swa_window, 128);
     }
 
     #[test]

@@ -19,4 +19,8 @@ sampling: Sampling,
 /**
  * Recommended sampling when thinking is on, if different.
  */
-thinking_sampling: Sampling | null, };
+thinking_sampling: Sampling | null, 
+/**
+ * Extra variables for the chat template (e.g. gpt-oss's `model_identity`).
+ */
+template_vars: { [key in string]: string }, };

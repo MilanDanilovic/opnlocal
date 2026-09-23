@@ -868,6 +868,7 @@ impl Engine {
             think_harder: conv.think_harder,
             bos_token: &active.text.bos,
             eos_token: &active.text.eos,
+            vars: &spec.chat.template_vars,
         };
         let plan = chat::plan_prompt(
             |msgs| chat::render(&template, msgs, &opts),
@@ -1027,6 +1028,7 @@ pub fn guess_chat_profile(template: &str) -> ChatProfile {
         thinking,
         sampling: Sampling { temperature: 0.7, top_p: 0.9, top_k: 40, min_p: 0.05 },
         thinking_sampling: None,
+        template_vars: Default::default(),
     }
 }
 

@@ -155,6 +155,9 @@ pub struct ChatProfile {
     pub sampling: Sampling,
     /// Recommended sampling when thinking is on, if different.
     pub thinking_sampling: Option<Sampling>,
+    /// Extra variables for the chat template (e.g. gpt-oss's `model_identity`).
+    #[serde(default)]
+    pub template_vars: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize, TS, Clone, Copy, Debug, PartialEq, Eq)]
@@ -334,6 +337,7 @@ pub(crate) mod tests {
                     min_p: 0.0,
                 },
                 thinking_sampling: None,
+                template_vars: Default::default(),
             },
             min_app_version: "0.1.0".into(),
         }

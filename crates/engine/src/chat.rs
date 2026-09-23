@@ -36,6 +36,8 @@ pub struct TemplateOptions<'a> {
     pub think_harder: bool,
     pub bos_token: &'a str,
     pub eos_token: &'a str,
+    /// Model-specific variables from the catalog.
+    pub vars: &'a std::collections::BTreeMap<String, String>,
 }
 
 /// Renders messages with a Hugging Face–style chat template, ending with the assistant prompt.
@@ -63,6 +65,9 @@ pub fn render(
     ctx.insert("add_generation_prompt", true.into());
     ctx.insert("bos_token", opts.bos_token.into());
     ctx.insert("eos_token", opts.eos_token.into());
+    for (k, v) in opts.vars {
+        ctx.insert(k.as_str(), v.as_str().into());
+    }
     match opts.thinking {
         ThinkingControl::Unsupported => {}
         ThinkingControl::TemplateFlag { variable } => {
@@ -387,12 +392,15 @@ mod tests {
 
     const CHATML: &str = "{% for m in messages %}<|im_start|>{{ m.role }}\n{{ m.content }}<|im_end|>\n{% endfor %}{% if add_generation_prompt %}<|im_start|>assistant\n{% if enable_thinking is defined and not enable_thinking %}<think>\n\n</think>\n\n{% endif %}{% endif %}";
 
+    static NO_VARS: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+
     fn opts(thinking: &ThinkingControl, harder: bool) -> TemplateOptions<'_> {
         TemplateOptions {
             thinking,
             think_harder: harder,
             bos_token: "",
             eos_token: "<|im_end|>",
+            vars: &NO_VARS,
         }
     }
 

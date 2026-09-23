@@ -126,6 +126,7 @@ pub fn measure(
             think_harder: false,
             bos_token: &text.bos,
             eos_token: &text.eos,
+            vars: &chat_profile.template_vars,
         },
     )
     .map_err(|e| LlmError::Runtime {
@@ -222,6 +223,7 @@ mod tests {
                 min_p: 0.0,
             },
             thinking_sampling: None,
+            template_vars: Default::default(),
         };
         // The tiny story model has no chat template; a plain one is enough to measure.
         let m = measure(&rt, &text, &profile, "{% for m in messages %}{{ m.content }}{% endfor %}")
