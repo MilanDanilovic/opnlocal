@@ -14,3 +14,5 @@ dist/
 /app/src-tauri/libs/
 /app/src-tauri/gen/schemas/
 /app/src-tauri/gen/apple/
+test-results/
+playwright-report/
