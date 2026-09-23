@@ -211,7 +211,11 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
-            let data_dir = app.path().app_data_dir()?;
+            // OPNLOCAL_DATA_DIR: used by automated tests of the real app to start from a clean folder.
+            let data_dir = match std::env::var_os("OPNLOCAL_DATA_DIR") {
+                Some(dir) => std::path::PathBuf::from(dir),
+                None => app.path().app_data_dir()?,
+            };
             // Desktop bundles ship the llama.cpp backends as resources next to the app.
             let lib_dir = app.path().resource_dir().ok();
             let handle = app.handle().clone();

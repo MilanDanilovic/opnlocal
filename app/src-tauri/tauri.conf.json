@@ -51,7 +51,10 @@
       "minSdkVersion": 28
     },
     "iOS": {
-      "minimumSystemVersion": "17.0"
+      "minimumSystemVersion": "17.0",
+      "frameworks": [
+        "Accelerate"
+      ]
     },
     "macOS": {
       "minimumSystemVersion": "13.0"

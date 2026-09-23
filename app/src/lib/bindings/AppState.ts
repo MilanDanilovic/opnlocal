@@ -11,7 +11,7 @@ import type { Settings } from "./Settings";
 /**
  * Everything the UI needs to render its screens, in one call.
  */
-export type AppState = { app_version: string, platform: Platform, settings: Settings, catalog_version: bigint, models: Array<CatalogModel>, imported: Array<ImportedModel>, installed: Array<string>, partial_downloads: Array<PartialDownload>, active_download: string | null, benchmarks: { [key in string]: BenchmarkResult }, conversations: Array<ConversationSummary>, storage_path: string, 
+export type AppState = { app_version: string, platform: Platform, settings: Settings, catalog_version: number, models: Array<CatalogModel>, imported: Array<ImportedModel>, installed: Array<string>, partial_downloads: Array<PartialDownload>, active_download: string | null, benchmarks: { [key in string]: BenchmarkResult }, conversations: Array<ConversationSummary>, storage_path: string, 
 /**
  * Loaded model and context, if any.
  */

@@ -5,7 +5,7 @@ export type Catalog = { schema: number,
 /**
  * Monotonic; a fetched catalog replaces the current one only if this is higher.
  */
-version: bigint, 
+version: number, 
 /**
  * ISO date, informational.
  */

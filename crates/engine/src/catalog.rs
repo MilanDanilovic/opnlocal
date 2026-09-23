@@ -39,6 +39,7 @@ impl UseCase {
 pub struct Catalog {
     pub schema: u32,
     /// Monotonic; a fetched catalog replaces the current one only if this is higher.
+    #[ts(type = "number")]
     pub version: u64,
     /// ISO date, informational.
     pub published: String,

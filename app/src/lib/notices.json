@@ -1,0 +1,16 @@
+[
+  { "name": "llama.cpp / ggml", "license": "MIT", "note": "runs the AI models" },
+  { "name": "llama-cpp-2 (Rust bindings)", "license": "MIT OR Apache-2.0" },
+  { "name": "Tauri", "license": "MIT OR Apache-2.0", "note": "app shell" },
+  { "name": "Svelte", "license": "MIT", "note": "user interface" },
+  { "name": "MiniJinja", "license": "Apache-2.0", "note": "chat templates" },
+  { "name": "reqwest, rustls, tokio, serde", "license": "MIT OR Apache-2.0" },
+  { "name": "webpki-roots", "license": "CDLA-Permissive-2.0 / MPL-2.0 data", "note": "certificate list for secure downloads" },
+  { "name": "ed25519-dalek", "license": "BSD-3-Clause", "note": "model list signature check" },
+  { "name": "sysinfo", "license": "MIT", "note": "device check" },
+  { "name": "pdf-extract, lopdf", "license": "MIT", "note": "PDF text" },
+  { "name": "zip, quick-xml", "license": "MIT", "note": "Word document text" },
+  { "name": "marked", "license": "MIT", "note": "formatted replies" },
+  { "name": "DOMPurify", "license": "MPL-2.0 OR Apache-2.0", "note": "safe display of replies" },
+  { "name": "highlight.js", "license": "BSD-3-Clause", "note": "code highlighting" }
+]

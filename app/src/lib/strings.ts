@@ -1,0 +1,271 @@
+// Every user-facing sentence lives here, so the app can be translated later.
+// Tone: plain words, no jargon (no "VRAM", "quantization", "tokens" outside Advanced).
+
+import type { UseCase } from "./bindings/UseCase";
+import type { FitLabel } from "./bindings/FitLabel";
+import type { Placement } from "./bindings/Placement";
+import type { SpeedVerdict } from "./bindings/SpeedVerdict";
+import { bytes, bytesUp, duration, memory, memoryUp, wordsPerSecond } from "./format";
+
+export const t = {
+  appName: "opnlocal",
+
+  welcome: {
+    title: "AI that runs on your own device",
+    lead: "opnlocal finds an AI model that suits this device, sets it up, and lets you chat with it. Everything stays here.",
+    start: "Find what my device can run",
+    privacyTitle: "Your chats never leave this device",
+    privacyPoints: [
+      "Conversations and documents are processed and stored only on this device.",
+      "No accounts, no analytics, no tracking.",
+      "opnlocal only goes online to download a model you choose and to check for new models once a day. You can turn that check off.",
+    ],
+    privacyMore: "What opnlocal connects to",
+  },
+
+  device: {
+    title: "Checking your device",
+    checking: "Looking at memory, graphics and free space…",
+    heading: "Here's what we found",
+    memory: (total: number) => `${memory(total)} of memory`,
+    graphics: "Graphics",
+    graphicsNone: "No graphics acceleration available. The processor will do the work, so replies are slower.",
+    graphicsName: (name: string, mem: number | null) => (mem ? `${name} (${memory(mem)} of its own memory)` : name),
+    graphicsShared: (name: string) => `${name} (shares system memory)`,
+    processor: "Processor",
+    storage: (free: number) => `${bytes(free)} free space`,
+    cpuTooOld:
+      "This processor is too old for opnlocal: it lacks instructions the AI engine needs. Phones from about 2019 onward are supported.",
+    continue: "Continue",
+    again: "Check again",
+  },
+
+  useCase: {
+    title: "What would you like to do?",
+    lead: "This helps pick a model that's good at it. You can change it later.",
+    options: {
+      everyday: { title: "Everyday help", body: "Questions, advice, explanations, planning." },
+      coding: { title: "Coding", body: "Write, explain and fix code." },
+      writing: { title: "Writing", body: "Emails, letters, stories, rewording." },
+      documents: { title: "Private documents", body: "Ask about PDFs, Word files and notes, without uploading them anywhere." },
+    } satisfies Record<UseCase, { title: string; body: string }>,
+  },
+
+  recommend: {
+    title: (u: UseCase) => `Good picks for ${useCaseNoun[u]} on this device`,
+    slot: { recommended: "Recommended", lighter: "Lighter & faster", stronger: "Stronger, but tight" },
+    estimateNote:
+      "These are estimates from this device's memory and free space. We measure real speed after the model is set up.",
+    seeAll: "See all models",
+    hideAll: "Show fewer",
+    notForThis: "Not made for this",
+    download: "Set up",
+    installed: "Installed",
+    open: "Use this model",
+    resume: "Continue download",
+    changeUse: "Change what I want to do",
+    notEnoughMemoryTitle: "This device doesn't have enough memory",
+    notEnoughMemory: (need: number) =>
+      `The smallest suitable model needs about ${memoryUp(need)} of free memory. Closing other apps won't be enough. A device with more memory is needed.`,
+    cpuTooOldTitle: "This device can't run opnlocal",
+    importInstead: "You can still import your own model file in Settings → Advanced.",
+  },
+
+  fit: {
+    label: {
+      comfortable: "Runs comfortably",
+      tight: "Runs, but tight",
+      too_big: "Too big for this device",
+    } satisfies Record<FitLabel, string>,
+    tightHint: "Close other apps while using it.",
+    placement: {
+      gpu: "uses your graphics chip",
+      mixed: "uses your graphics chip and processor",
+      cpu: "uses the processor only, so replies are slower",
+    } satisfies Record<Placement, string>,
+    shortBy: (b: number) => `needs about ${memoryUp(b)} more memory`,
+    closeApps: "Close other apps first: not enough memory is free right now.",
+  },
+
+  model: {
+    download: (size: number) => `${bytes(size)} download`,
+    needsSpace: (need: number) => `needs ${bytesUp(need)} free`,
+    notEnoughSpace: (short: number) => `Not enough space: free up ${bytesUp(short)}`,
+    license: "License",
+    licenseLink: "Read the full license",
+    acceptTitle: "This model has its own terms",
+    acceptCheckbox: "I've read the terms and they apply to how I'll use this model",
+    back: "Back",
+    downloadNow: (size: number) => `Download ${bytes(size)}`,
+    wifiHint: "Large download: Wi-Fi is recommended.",
+  },
+
+  download: {
+    title: (name: string) => `Setting up ${name}`,
+    progress: (done: number, total: number) => `${bytes(done)} of ${bytes(total)}`,
+    remaining: (secs: number) => `${duration(secs)} left`,
+    checking: "Checking the part already downloaded…",
+    retrying: (s: number) => `Connection lost. Trying again in ${s} seconds…`,
+    keepOpen: "Keep opnlocal open until this finishes. If it's interrupted, it continues where it stopped.",
+    cancel: "Cancel download",
+    cancelConfirm: "Cancel and delete what's been downloaded so far?",
+    done: "Download complete and verified",
+    failedTitle: "The download stopped",
+    retry: "Try again",
+    offline: "You're offline. Connect to the internet and try again. What's already downloaded is kept.",
+    noSpace: (need: number) => `Not enough free space. Free up about ${bytesUp(need)} and try again.`,
+    corrupt: "The downloaded file didn't match the expected file, so it was deleted. Please try again.",
+    http: (status: number) => `The download server answered with an error (${status}). Try again later.`,
+    network: "The connection kept dropping. What's downloaded is kept. Try again when the connection is steadier.",
+    io: (m: string) => `Couldn't save the file: ${m}`,
+    elsewhere: "Another download is in progress.",
+    banner: (name: string, pct: number) => `Downloading ${name}: ${pct}%`,
+  },
+
+  bench: {
+    title: "Testing speed on this device",
+    lead: "A short test: the model reads a passage and writes a summary. It takes up to about a minute.",
+    stage: {
+      loading: "Loading the model…",
+      reading: "Reading…",
+      writing: "Writing…",
+      comparing_processor: "Comparing with the processor…",
+    },
+    skip: "Skip test",
+    measuredTitle: "Measured on this device",
+    speed: (wps: number) => `Replies at about ${wordsPerSecond(wps)} words per second`,
+    verdict: {
+      faster_than_reading: "Faster than most people read.",
+      about_reading_speed: "About as fast as most people read.",
+      slower_than_reading: "A bit slower than most people read.",
+      slow: "Slow: longer replies will take a while.",
+    } satisfies Record<SpeedVerdict, string>,
+    firstWord: (s: string) => `First words after ${s}`,
+    loadTime: (s: string) => `Loading took ${s}`,
+    ranOn: (device: string) => `Ran on ${device}`,
+    details: "Details",
+    startChat: "Start chatting",
+    failedTitle: "The test couldn't finish",
+    tryAgain: "Try again",
+    chatAnyway: "Chat anyway",
+  },
+
+  chat: {
+    newChat: "New chat",
+    placeholder: "Message",
+    send: "Send",
+    stop: "Stop",
+    attach: "Attach a document",
+    thinkHarder: "Think harder",
+    thinkHarderHint: "Slower, but better on hard questions",
+    showThinking: "Show thinking",
+    hideThinking: "Hide thinking",
+    thinking: "Thinking…",
+    copy: "Copy",
+    copied: "Copied",
+    regenerate: "Try again",
+    stopped: "Stopped",
+    stats: (words: number, secs: number) => `${words} word${words === 1 ? "" : "s"} · ${secs.toFixed(1)} s`,
+    dropped: (n: number) =>
+      `The conversation got long, so the oldest ${n === 1 ? "message was" : `${n} messages were`} set aside to make room.`,
+    empty: {
+      everyday: ["Plan a week of simple dinners", "Explain how vaccines work", "Help me write a polite complaint"],
+      coding: ["Write a Python script that renames photos by date", "Explain this error message", "Review my function for bugs"],
+      writing: ["Make this email sound friendlier", "Write a short bedtime story", "Summarize this in three sentences"],
+      documents: ["Attach a PDF and ask what it says about deadlines", "Summarize the attached contract", "List the action items in my notes"],
+    } satisfies Record<UseCase, string[]>,
+    emptyTitle: "What can I help with?",
+    local: "Runs on this device. Nothing is sent anywhere.",
+    loading: (pct: number) => `Loading the model… ${pct}%`,
+    noModelTitle: "No model set up yet",
+    noModel: "Set up a model to start chatting.",
+    findModel: "Find a model",
+    tooLong: (x: number) =>
+      `This message is about ${x.toFixed(1)} times more than this model can read at once. Try a shorter document or split it into parts.`,
+    error: "Something went wrong while replying.",
+    attachmentWords: (name: string, words: number) => `${name} · ${words.toLocaleString("en")} words`,
+    removeAttachment: (name: string) => `Remove ${name}`,
+    deleteChat: "Delete chat",
+    deleteChatConfirm: "Delete this conversation? This can't be undone.",
+    conversations: "Conversations",
+    model: "Model",
+    menu: "Menu",
+    settings: "Settings",
+  },
+
+  models: {
+    title: "Models",
+    installed: "On this device",
+    none: "No models set up yet.",
+    add: "Find more models",
+    delete: "Delete",
+    deleteConfirm: (name: string, size: number) => `Delete ${name}? This frees ${bytes(size)}.`,
+    rerun: "Test speed again",
+    notMeasured: "Speed not measured yet",
+    imported: "Imported file · not verified by opnlocal",
+    use: "Use for new chats",
+    active: "Used for new chats",
+  },
+
+  settings: {
+    title: "Settings",
+    back: "Back to chat",
+    privacy: "Privacy",
+    privacyLead: "opnlocal runs AI models entirely on this device. It makes only these connections:",
+    connections: [
+      ["Model downloads", "From huggingface.co, only when you choose to set up a model."],
+      ["New-model check", "Downloads a signed list of models from github.com at most once a day. No information about you or this device is sent."],
+    ] as [string, string][],
+    never: "Never: analytics, crash reports, accounts, or sending your chats or documents anywhere.",
+    autoRefresh: "Check for new models automatically",
+    checkNow: "Check now",
+    checked: (v: number) => `Model list is up to date (version ${v}).`,
+    updated: (v: number) => `New models available (list version ${v}).`,
+    checkFailed: "Couldn't reach the model list. You may be offline.",
+    deleteAll: "Delete all conversations",
+    deleteAllConfirm: "Delete every conversation on this device? This can't be undone.",
+    advanced: "Advanced",
+    advancedLead: "Technical controls. The defaults are chosen for you. Change them only if you know what they do.",
+    gpu: "Use graphics acceleration",
+    gpuCrash: (device: string) =>
+      `Graphics acceleration was turned off because the graphics driver${device ? ` (${device})` : ""} stopped responding while loading a model. You can turn it back on to try again.`,
+    perModel: "Model settings",
+    context: "Context length (tokens)",
+    contextHint: "How much text the model reads at once. Larger uses more memory.",
+    temperature: "Temperature",
+    topP: "Top-p",
+    maxReply: "Maximum reply length (tokens)",
+    systemPrompt: "Starting instruction",
+    gpuLayers: "Layers on the graphics chip (empty = automatic, 0 = processor only)",
+    threads: "Processor threads (empty = automatic)",
+    reset: "Reset to recommended",
+    saved: "Saved",
+    hardware: "Device report",
+    benchmarks: "Measured results",
+    storage: "Storage",
+    storagePath: "Models and chats are stored in",
+    storageFree: (free: number) => `${bytes(free)} free on this drive`,
+    importModel: "Import a model file (.gguf)",
+    importHint: "Imported files are not checked by opnlocal and are never recommended.",
+    importing: (pct: number) => `Importing… ${pct}%`,
+    about: "About",
+    version: (v: string) => `opnlocal ${v}`,
+    notices: "Open-source components",
+    noticesLead: "opnlocal is built on these projects:",
+  },
+
+  errors: {
+    generic: "Something went wrong.",
+    details: "Details",
+    dismiss: "Dismiss",
+  },
+
+  offline: "You're offline. Chatting still works; downloading models needs internet.",
+};
+
+const useCaseNoun: Record<UseCase, string> = {
+  everyday: "everyday help",
+  coding: "coding",
+  writing: "writing",
+  documents: "private documents",
+};

@@ -58,6 +58,8 @@ pub struct BenchmarkResult {
     pub generation_tokens_per_second: Option<f64>,
     pub words: u32,
     pub words_per_second: Option<f64>,
+    /// Measured speed relative to reading speed (see [`verdict`]).
+    pub verdict: Option<SpeedVerdict>,
     /// System memory used by the app at the end of the test (includes the model if it's in RAM).
     #[ts(type = "number | null")]
     pub ram_in_use_bytes: Option<u64>,

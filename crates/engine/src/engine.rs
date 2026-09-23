@@ -94,10 +94,10 @@ pub enum EngineError {
     LicenseNotAccepted { license_id: String },
     #[error("another download is in progress")]
     DownloadInProgress { model_id: String },
-    #[error(transparent)]
-    Download(DownloadError),
-    #[error(transparent)]
-    Llm(LlmError),
+    #[error("{error}")]
+    Download { error: DownloadError },
+    #[error("{error}")]
+    Llm { error: LlmError },
     #[error("the message is too long for this model")]
     MessageTooLong {
         /// Prompt size relative to what fits, e.g. 2.3 = "about 2.3 times too long".
@@ -121,7 +121,7 @@ pub enum EngineError {
 
 impl From<LlmError> for EngineError {
     fn from(e: LlmError) -> Self {
-        EngineError::Llm(e)
+        EngineError::Llm { error: e }
     }
 }
 
@@ -159,6 +159,7 @@ pub struct AppState {
     pub app_version: String,
     pub platform: Platform,
     pub settings: Settings,
+    #[ts(type = "number")]
     pub catalog_version: u64,
     pub models: Vec<CatalogModel>,
     pub imported: Vec<ImportedModel>,
@@ -480,7 +481,7 @@ impl Engine {
             model_id: model_id.to_string(),
             error: result.clone().err(),
         });
-        result.map_err(EngineError::Download)
+        result.map_err(|error| EngineError::Download { error })
     }
 
     pub fn cancel_download(&self) {
@@ -707,6 +708,7 @@ impl Engine {
                 generation_tokens_per_second: m.generation_tokens_per_second,
                 words: m.words,
                 words_per_second: m.words_per_second,
+                verdict: m.words_per_second.map(bench::verdict),
                 ram_in_use_bytes: process_memory(),
                 gpu_memory_used_bytes: (on_gpu && gpu_used > 0).then_some(gpu_used),
                 hit_time_limit: m.hit_time_limit,
@@ -1064,6 +1066,15 @@ mod tests {
         assert!(t.ends_with('…') && t.chars().count() <= 61, "{t}");
         let a = Attachment { name: "report.pdf".into(), text: "x".into() };
         assert_eq!(title_from("", &[a]), "report.pdf");
+    }
+
+    #[test]
+    fn errors_serialize_for_the_ui_without_clashing_tags() {
+        let e = EngineError::Download { error: DownloadError::Offline };
+        assert_eq!(
+            serde_json::to_string(&e).unwrap(),
+            r#"{"kind":"download","error":{"kind":"offline"}}"#
+        );
     }
 
     #[test]
