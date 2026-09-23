@@ -25,6 +25,7 @@ static BACKEND: std::sync::OnceLock<llama_cpp_2::llama_backend::LlamaBackend> =
 pub fn probe() -> Probe {
     BACKEND.get_or_init(|| {
         let b = llama_cpp_2::llama_backend::LlamaBackend::init().unwrap();
+        #[cfg(any(target_os = "windows", target_os = "linux"))]
         if llama_cpp_2::list_llama_ggml_backend_devices().is_empty()
             && let Ok(exe) = std::env::current_exe()
         {
