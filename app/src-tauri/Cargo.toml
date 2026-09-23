@@ -25,3 +25,7 @@ serde_json = "1"
 # the llama.cpp shared libraries next to the executable. Features come from the engine.
 llama-cpp-sys-2 = { version = "=0.1.157", default-features = false }
 tauri-plugin-fs = "2"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+# UIKit call for keeping the screen on (see src/keep_awake.rs). Already used by Tauri itself.
+objc2 = "0.6"

@@ -3025,6 +3025,7 @@ name = "opnlocal"
 version = "0.1.0"
 dependencies = [
  "llama-cpp-sys-2",
+ "objc2",
  "opnlocal-engine",
  "serde",
  "serde_json",

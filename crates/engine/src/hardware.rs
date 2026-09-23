@@ -149,6 +149,7 @@ pub fn detect(storage_dir: &Path) -> DeviceInfo {
             .first()
             .map(|c| c.brand().trim().to_string())
             .filter(|s| !s.is_empty())
+            .or_else(platform_cpu_name)
             .unwrap_or_else(|| "Unknown processor".into()),
         cores: System::physical_core_count().unwrap_or(sys.cpus().len()) as u32,
         threads: sys.cpus().len().max(1) as u32,
@@ -165,7 +166,7 @@ pub fn detect(storage_dir: &Path) -> DeviceInfo {
     let gpus = gpus_from_devices(platform, crate::llm::devices());
 
     let mut issues = Vec::new();
-    let missing = missing_cpu_features(platform, &cpu.features);
+    let missing = missing_cpu_features(platform, &cpu.arch, &cpu.features);
     if !missing.is_empty() {
         issues.push(DeviceIssue::CpuTooOld { missing });
     }
@@ -175,7 +176,9 @@ pub fn detect(storage_dir: &Path) -> DeviceInfo {
 
     DeviceInfo {
         platform,
-        os_version: System::long_os_version().unwrap_or_else(|| std::env::consts::OS.into()),
+        os_version: platform_os_version()
+            .or_else(System::long_os_version)
+            .unwrap_or_else(|| std::env::consts::OS.into()),
         device_name: device_name(),
         cpu,
         memory,
@@ -264,10 +267,11 @@ fn cpu_features() -> Vec<String> {
     f.into_iter().map(String::from).collect()
 }
 
-/// The Android build targets armv8.2-a+dotprod+fp16 (see docs/DECISIONS.md). Running it on an
-/// older core would crash with an illegal instruction, so we refuse cleanly instead.
-pub fn missing_cpu_features(platform: Platform, features: &[String]) -> Vec<String> {
-    if platform != Platform::Android {
+/// The Android arm64 build targets armv8.2-a+dotprod+fp16 (see docs/DECISIONS.md). Running it on
+/// an older core would crash with an illegal instruction, so we refuse cleanly instead.
+/// (x86_64 Android builds exist only for the emulator and use a baseline x86-64 target.)
+pub fn missing_cpu_features(platform: Platform, arch: &str, features: &[String]) -> Vec<String> {
+    if platform != Platform::Android || arch != "aarch64" {
         return Vec::new();
     }
     ["dotprod", "fp16"]
@@ -292,14 +296,44 @@ fn ios_app_memory_limit() -> Option<u64> {
 }
 
 #[cfg(target_os = "android")]
-fn device_name() -> Option<String> {
-    fn prop(name: &str) -> Option<String> {
-        let key = std::ffi::CString::new(name).ok()?;
-        let mut buf = [0u8; 92]; // PROP_VALUE_MAX
-        // SAFETY: buf is PROP_VALUE_MAX bytes as required by the API.
-        let len = unsafe { libc::__system_property_get(key.as_ptr(), buf.as_mut_ptr().cast()) };
-        (len > 0).then(|| String::from_utf8_lossy(&buf[..len as usize]).trim().to_string())
+fn prop(name: &str) -> Option<String> {
+    let key = std::ffi::CString::new(name).ok()?;
+    let mut buf = [0u8; 92]; // PROP_VALUE_MAX
+    // SAFETY: buf is PROP_VALUE_MAX bytes as required by the API.
+    let len = unsafe { libc::__system_property_get(key.as_ptr(), buf.as_mut_ptr().cast()) };
+    (len > 0)
+        .then(|| String::from_utf8_lossy(&buf[..len as usize]).trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// Phones don't report a processor brand to apps; the chip name is in system properties
+/// (Android 12+: "Qualcomm SM8650"), else the board platform ("kalama").
+#[cfg(target_os = "android")]
+fn platform_cpu_name() -> Option<String> {
+    match (prop("ro.soc.manufacturer"), prop("ro.soc.model")) {
+        (Some(m), Some(model)) => Some(format!("{m} {model}")),
+        (None, Some(model)) => Some(model),
+        _ => prop("ro.board.platform").or_else(|| prop("ro.hardware")),
     }
+}
+
+#[cfg(not(target_os = "android"))]
+fn platform_cpu_name() -> Option<String> {
+    None
+}
+
+#[cfg(target_os = "android")]
+fn platform_os_version() -> Option<String> {
+    prop("ro.build.version.release").map(|v| format!("Android {v}"))
+}
+
+#[cfg(not(target_os = "android"))]
+fn platform_os_version() -> Option<String> {
+    None
+}
+
+#[cfg(target_os = "android")]
+fn device_name() -> Option<String> {
     let model = prop("ro.product.model")?;
     match prop("ro.product.manufacturer") {
         Some(m) if !model.to_lowercase().starts_with(&m.to_lowercase()) => {
@@ -408,12 +442,14 @@ pub(crate) mod tests {
     fn old_android_cpu_is_flagged() {
         let old = vec!["neon".to_string()];
         assert_eq!(
-            missing_cpu_features(Platform::Android, &old),
+            missing_cpu_features(Platform::Android, "aarch64", &old),
             vec!["dotprod", "fp16"]
         );
         let modern: Vec<String> = ["neon", "dotprod", "fp16"].map(String::from).to_vec();
-        assert!(missing_cpu_features(Platform::Android, &modern).is_empty());
-        assert!(missing_cpu_features(Platform::Windows, &old).is_empty());
+        assert!(missing_cpu_features(Platform::Android, "aarch64", &modern).is_empty());
+        assert!(missing_cpu_features(Platform::Windows, "aarch64", &old).is_empty());
+        // The x86_64 emulator build has no ARM requirements.
+        assert!(missing_cpu_features(Platform::Android, "x86_64", &[]).is_empty());
     }
 
     #[test]

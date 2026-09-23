@@ -12,6 +12,8 @@ use opnlocal_engine::{Engine, EngineError};
 use std::sync::Arc;
 use tauri::{Emitter, Manager, State};
 
+mod keep_awake;
+
 type Eng<'a> = State<'a, Arc<Engine>>;
 type Res<T> = Result<T, EngineError>;
 
@@ -57,7 +59,8 @@ async fn refresh_catalog(engine: Eng<'_>, force: bool) -> Res<CatalogRefresh> {
 }
 
 #[tauri::command]
-async fn download_model(engine: Eng<'_>, model_id: String) -> Res<()> {
+async fn download_model(app: tauri::AppHandle, engine: Eng<'_>, model_id: String) -> Res<()> {
+    let _awake = keep_awake::Awake::new(&app);
     engine.download(&model_id).await
 }
 
@@ -74,25 +77,29 @@ async fn delete_model(engine: Eng<'_>, model_id: String) -> Res<()> {
 }
 
 #[tauri::command]
-async fn run_benchmark(engine: Eng<'_>, model_id: String) -> Res<BenchmarkResult> {
+async fn run_benchmark(app: tauri::AppHandle, engine: Eng<'_>, model_id: String) -> Res<BenchmarkResult> {
+    let _awake = keep_awake::Awake::new(&app);
     let e = engine.inner().clone();
     blocking(move || e.benchmark(&model_id)).await
 }
 
 #[tauri::command]
 async fn send_message(
+    app: tauri::AppHandle,
     engine: Eng<'_>,
     conversation_id: Option<String>,
     text: String,
     attachments: Vec<Attachment>,
     think_harder: bool,
 ) -> Res<Conversation> {
+    let _awake = keep_awake::Awake::new(&app);
     let e = engine.inner().clone();
     blocking(move || e.send_message(conversation_id.as_deref(), &text, attachments, think_harder)).await
 }
 
 #[tauri::command]
-async fn regenerate(engine: Eng<'_>, conversation_id: String, think_harder: bool) -> Res<Conversation> {
+async fn regenerate(app: tauri::AppHandle, engine: Eng<'_>, conversation_id: String, think_harder: bool) -> Res<Conversation> {
+    let _awake = keep_awake::Awake::new(&app);
     let e = engine.inner().clone();
     blocking(move || e.regenerate(&conversation_id, think_harder)).await
 }
@@ -210,6 +217,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(keep_awake::plugin())
         .setup(|app| {
             // OPNLOCAL_DATA_DIR: used by automated tests of the real app to start from a clean folder.
             let data_dir = match std::env::var_os("OPNLOCAL_DATA_DIR") {

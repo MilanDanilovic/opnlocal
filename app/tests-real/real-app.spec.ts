@@ -1,7 +1,7 @@
 // Drives the real Windows app (real engine, real llama.cpp, real downloads) through Playwright,
 // attached to its WebView2 over the Chrome DevTools protocol. Opt-in and slow: it downloads a
 // ~0.8 GB model. Run with:  npx playwright test -c playwright.real.config.ts
-import { expect, test, chromium, type Browser, type Page } from "@playwright/test";
+import { expect, test, chromium, _android, type Browser, type Page } from "@playwright/test";
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -29,10 +29,21 @@ async function connect(): Promise<Page> {
 }
 
 function shot(name: string) {
-  return page.screenshot({ path: `test-results/real/${name}.png` });
+  return page.screenshot({ path: `test-results/real/${external ? "cdp-" : ""}${name}.png` });
 }
 
+// OPNLOCAL_ANDROID=1: attach to the app already running on a connected device/emulator (adb),
+// using Playwright's Android WebView support. The app's debug build enables WebView debugging.
+const external = process.env.OPNLOCAL_ANDROID === "1";
+
 test.beforeAll(async () => {
+  if (external) {
+    const [device] = await _android.devices();
+    if (!device) throw new Error("no Android device connected (adb devices)");
+    const webview = await device.webView({ pkg: "io.github.milandanilovic.opnlocal" });
+    page = await webview.page();
+    return;
+  }
   dataDir = mkdtempSync(join(tmpdir(), "opnlocal-real-"));
   app = spawn(EXE, [], {
     env: {
@@ -47,6 +58,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  if (external) return;
   await browser?.close().catch(() => {});
   app?.kill();
   await new Promise((r) => setTimeout(r, 1500));
