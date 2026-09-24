@@ -44,6 +44,19 @@ npm ci
 npx tauri build --bundles nsis        # → C:\ot\release\bundle\nsis\opnlocal_0.1.0_x64-setup.exe
 ```
 
+## Status of v0.1.0 (2026-09-24)
+
+| Platform | Built | Ran the real app | Not verified yet |
+|---|---|---|---|
+| Windows x64 | here (NSIS installer) | installed build, full journey with a real download, benchmark and chat on RX 7800 XT (Vulkan) | other GPUs (NVIDIA, Intel), Windows 10 |
+| Android arm64 | here (signed APK + AAB) | x86_64 emulator: full journey (CPU). The arm64 release build launches under ARM translation and correctly refuses (the translation layer lacks dot-product instructions). | any physical phone |
+| Linux x64 | CI (AppImage + .deb) | CI: installed .deb, detection + real generation (CPU), screenshot | a desktop session with a GPU |
+| macOS arm64 | CI (.dmg, unsigned) | CI: detection + real generation on Metal, screenshot | a physical Mac, notarization |
+| iOS arm64 | CI (unsigned .ipa + simulator app) | CI simulator: detection + real generation (CPU; the simulator's Metal is unreliable), screenshot | any physical iPhone (Metal, memory limits, signing) |
+
+All 9 catalog models were downloaded, benchmarked and chatted with through the engine on the
+Windows machine: [catalog/VERIFICATION.md](catalog/VERIFICATION.md).
+
 ## Test
 
 See [docs/TESTING.md](docs/TESTING.md).
