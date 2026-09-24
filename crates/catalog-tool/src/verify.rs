@@ -37,7 +37,8 @@ pub async fn run(dir: &Path, ids: &[String]) -> Result<(), String> {
         device.gpus.iter().map(|g| format!(", {} ({} GiB)", g.name, g.memory_total >> 30)).collect::<String>()
     ).unwrap();
     writeln!(report, "Every model was downloaded from its pinned Hugging Face commit, checked against its sha256, loaded by the app's engine, benchmarked, and asked two questions (thinking off, then \"Think harder\").\n").unwrap();
-    writeln!(report, "| Model | Placement | Words/s | Tokens/s | First word | Estimated need | Measured (RAM + GPU) | Plain answer | Think-harder answer |").unwrap();
+    writeln!(report, "*App RAM + GPU* is the process's resident memory plus the drop in free graphics memory, as reported by the OS and driver. It over-counts when a model sits on the GPU: the memory-mapped model file still shows as resident (the OS can reclaim it), and drivers release memory lazily. The estimate is what the app uses to decide fit.\n").unwrap();
+    writeln!(report, "| Model | Placement | Words/s | Tokens/s | First word | Estimated need | App RAM + GPU | Plain answer | Think-harder answer |").unwrap();
     writeln!(report, "|---|---|---|---|---|---|---|---|---|").unwrap();
 
     let mut failures = Vec::new();
@@ -101,7 +102,7 @@ async fn verify_one(engine: &Arc<Engine>, m: &opnlocal_engine::catalog::CatalogM
     let plain_msg = plain.messages.last().unwrap();
     let plain_ok = plain_msg.content.contains("Paris");
     // Thinking must stay out of normal replies.
-    let plain_clean = plain_msg.thinking.is_none() || matches!(m.chat.thinking, ThinkingControl::AlwaysOn { .. });
+    let plain_clean = plain_msg.thinking.is_none() || m.chat.thinking.thinks_by_default();
     eprintln!("  plain: {:?} (thinking: {})", plain_msg.content, plain_msg.thinking.as_deref().map(|t| t.len()).unwrap_or(0));
 
     let hard = ask("What is 17 multiplied by 23? Give just the number at the end.", true).await.map_err(|e| e.to_string())?;

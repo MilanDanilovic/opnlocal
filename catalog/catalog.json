@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 1,
+  "version": 2,
   "published": "2026-09-24",
   "models": [
     {
@@ -152,7 +152,7 @@
       "chat": {
         "reasoning": "think_tags",
         "thinking": {
-          "kind": "unsupported"
+          "kind": "always"
         },
         "sampling": {
           "temperature": 0.1,

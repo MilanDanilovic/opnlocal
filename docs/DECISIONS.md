@@ -60,6 +60,27 @@ quantization or an inference engine is.
    `engine::fit`), small context sizes, and models that don't fit are never offered.
 4. Tauri 3 is in alpha; we stay on 2.x.
 
+## Learned while building (2026-09-24)
+
+- **Thinking budget.** Small reasoning models (Qwen3.5 0.8B/2B) asked to "think harder" reasoned
+  until they hit the reply limit and never answered. The engine now closes the reasoning in the
+  model's own format after 3/4 of the budget and asks for the answer with the rest. Verified on
+  all catalog models (`catalog/VERIFICATION.md`).
+- **Chat templates are real Jinja.** LFM2.5 uses `{% generation %}` (a Hugging Face training-only
+  tag); it's stripped before rendering. gpt-oss introduces itself as "ChatGPT" unless
+  `model_identity` is set; the catalog sets it (`template_vars`).
+- **Some models always think** (LFM2.5, gpt-oss). The catalog says so (`always` / `always_on`), so
+  the reasoning stays behind "Show thinking" and "Think harder" is only offered where it changes
+  something.
+- **Windows path length.** llama.cpp's Vulkan shader generator breaks under Windows' 260-character
+  path limit; builds use a short target directory (`C:\ot`).
+- **Apple linking.** macOS needs clang's runtime library linked explicitly (ggml-metal's
+  `@available` checks); iOS needs the Accelerate framework declared in the Xcode project.
+- **Licenses** (full review of 598 crates, npm, Android libraries, llama.cpp vendored code): no
+  copyleft ships. Notices are generated (`scripts/generate-notices.mjs`) and shown in the app.
+  Open point: the Linux **AppImage** bundles LGPL system libraries (GTK/WebKitGTK), which brings
+  LGPL redistribution duties; the `.deb` does not. Decide before publishing the AppImage.
+
 ## Research summary (2026-09-23)
 
 - llama.cpp v0.5.0 / b11149. Stable semver tags since 2026-08. Now stewarded by Hugging Face (ggml.ai

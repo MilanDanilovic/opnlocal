@@ -163,14 +163,20 @@ pub fn detect(storage_dir: &Path) -> DeviceInfo {
         app_limit: ios_app_memory_limit(),
     };
 
-    let gpus = gpus_from_devices(platform, crate::llm::devices());
+    // The iOS simulator's Metal is an emulation that produces wrong results for llama.cpp
+    // kernels (verified in CI: garbage output), so the simulator build runs on the processor.
+    let gpus = if cfg!(target_abi = "sim") {
+        Vec::new()
+    } else {
+        gpus_from_devices(platform, crate::llm::devices())
+    };
 
     let mut issues = Vec::new();
     let missing = missing_cpu_features(platform, &cpu.arch, &cpu.features);
     if !missing.is_empty() {
         issues.push(DeviceIssue::CpuTooOld { missing });
     }
-    if gpus.is_empty() && platform != Platform::Android {
+    if gpus.is_empty() && platform != Platform::Android && !cfg!(target_abi = "sim") {
         issues.push(DeviceIssue::NoGpuAcceleration);
     }
 
@@ -287,7 +293,9 @@ fn ios_app_memory_limit() -> Option<u64> {
         fn os_proc_available_memory() -> usize;
     }
     // SAFETY: plain libSystem query (iOS 13+), no arguments.
-    Some(unsafe { os_proc_available_memory() } as u64)
+    let available = unsafe { os_proc_available_memory() } as u64;
+    // 0 means "not available" (e.g. the simulator); fall back to the total-memory budget.
+    (available > 0).then_some(available)
 }
 
 #[cfg(not(target_os = "ios"))]

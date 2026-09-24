@@ -21,7 +21,8 @@
   const installed = $derived(app.state?.installed ?? []);
   const hasModel = $derived(modelId !== null && installed.includes(modelId));
   const catalogModel = $derived(app.model(modelId));
-  const canThink = $derived(!catalogModel || catalogModel.chat.thinking.kind !== "unsupported");
+  // "Think harder" only where it changes something (not for models that can't, or always, think).
+  const canThink = $derived(!catalogModel || !["unsupported", "always"].includes(catalogModel.chat.thinking.kind));
   const useCase = $derived<UseCase>(conv?.use_case ?? app.settings?.use_case ?? "everyday");
   const stream = $derived(app.streaming);
   const lastAssistant = $derived(conv?.messages.findLastIndex((m) => m.role === "assistant") ?? -1);

@@ -189,6 +189,15 @@ pub enum ThinkingControl {
         normal: String,
         harder: String,
     },
+    /// Always reasons briefly, with no way to change it (LFM2.5). "Think harder" is hidden.
+    Always,
+}
+
+impl ThinkingControl {
+    /// The model may produce reasoning before its answer, whatever the user chose.
+    pub fn thinks_by_default(&self) -> bool {
+        matches!(self, ThinkingControl::AlwaysOn { .. } | ThinkingControl::Always)
+    }
 }
 
 #[derive(Serialize, Deserialize, TS, Clone, Copy, Debug, PartialEq)]

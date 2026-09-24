@@ -4,4 +4,8 @@ export type LoadInfo = { load_ms: number, context: number,
 /**
  * Layers placed on the GPU (0 = processor only), out of `total_layers`.
  */
-gpu_layers: number, total_layers: number, gpu_device: string | null, };
+gpu_layers: number, total_layers: number, gpu_device: string | null, 
+/**
+ * Some weights (MoE experts) stay in system memory even though layers run on the GPU.
+ */
+split_with_cpu: boolean, };

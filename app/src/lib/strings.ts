@@ -252,6 +252,7 @@ export const t = {
     version: (v: string) => `opnlocal ${v}`,
     notices: "Open-source components",
     noticesLead: "opnlocal is built on these projects:",
+    fullNotices: "Full license texts",
   },
 
   errors: {

@@ -98,6 +98,8 @@ pub struct LoadInfo {
     pub gpu_layers: i32,
     pub total_layers: u32,
     pub gpu_device: Option<String>,
+    /// Some weights (MoE experts) stay in system memory even though layers run on the GPU.
+    pub split_with_cpu: bool,
 }
 
 /// Model facts needed to build prompts.
@@ -299,7 +301,7 @@ fn worker(backend: &'static LlamaBackend, rx: mpsc::Receiver<Command>) {
 
         let started = Instant::now();
         let loaded = load_model(backend, &opts, progress);
-        let (model, gpu_layers, gpu_device) = match loaded {
+        let Placed { model, gpu_layers, gpu_device, split_with_cpu } = match loaded {
             Ok(v) => v,
             Err(e) => {
                 clear_marker(&opts);
@@ -354,6 +356,7 @@ fn worker(backend: &'static LlamaBackend, rx: mpsc::Receiver<Command>) {
             },
             total_layers: model.n_layer(),
             gpu_device,
+            split_with_cpu,
         };
         let _ = reply.send(Ok((info, text)));
 
@@ -411,7 +414,7 @@ fn load_model(
     backend: &LlamaBackend,
     opts: &LoadOptions,
     mut progress: ProgressSink,
-) -> Result<(LlamaModel, i32, Option<String>), LlmError> {
+) -> Result<Placed, LlmError> {
     let base = LlamaModelParams::default;
     let gpu_device = match opts.gpu {
         GpuChoice::Auto { device_index } => devices()
@@ -473,6 +476,9 @@ fn load_model(
         );
     }
     let gpu_layers = if uses_gpu { params.n_gpu_layers() } else { 0 };
+    // The fitter may keep some tensors (MoE experts) in system memory even with every layer
+    // "on the GPU"; then the work is really split.
+    let split_with_cpu = uses_gpu && !params.tensor_buft_override_patterns().is_empty();
     let params = params.with_progress_callback(move |p| {
         progress(p);
         true
@@ -481,7 +487,19 @@ fn load_model(
         LlamaModel::load_from_file(backend, &opts.path, &params).map_err(|e| LlmError::LoadFailed {
             message: e.to_string(),
         })?;
-    Ok((model, gpu_layers, if uses_gpu { gpu_device } else { None }))
+    Ok(Placed {
+        model,
+        gpu_layers,
+        gpu_device: if uses_gpu { gpu_device } else { None },
+        split_with_cpu,
+    })
+}
+
+struct Placed {
+    model: LlamaModel,
+    gpu_layers: i32,
+    gpu_device: Option<String>,
+    split_with_cpu: bool,
 }
 
 fn llama_max_devices() -> usize {

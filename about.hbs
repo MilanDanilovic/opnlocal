@@ -1,0 +1,21 @@
+opnlocal — third-party software notices
+=======================================
+
+opnlocal includes the open-source components listed below. Each is used under its own license,
+reproduced in full. opnlocal itself is proprietary; nothing here changes the license terms of
+these components.
+
+Rust crates
+-----------
+{{#each overview}}
+{{{name}}} — {{count}} crate(s)
+{{/each}}
+
+{{#each licenses}}
+------------------------------------------------------------------------------------------------
+{{{name}}}
+Used by: {{#each used_by}}{{{crate.name}}} {{{crate.version}}}{{#unless @last}}, {{/unless}}{{/each}}
+------------------------------------------------------------------------------------------------
+{{{text}}}
+
+{{/each}}

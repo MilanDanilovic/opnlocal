@@ -70,7 +70,7 @@ pub fn render(
         ctx.insert(k.as_str(), v.as_str().into());
     }
     match opts.thinking {
-        ThinkingControl::Unsupported => {}
+        ThinkingControl::Unsupported | ThinkingControl::Always => {}
         ThinkingControl::TemplateFlag { variable } => {
             ctx.insert(variable.as_str(), opts.think_harder.into());
         }

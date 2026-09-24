@@ -687,7 +687,7 @@ impl Engine {
             let on_gpu = active.info.gpu_layers > 0;
             let placement = if !on_gpu {
                 Placement::Cpu
-            } else if active.info.gpu_layers as u32 >= active.info.total_layers {
+            } else if active.info.gpu_layers as u32 >= active.info.total_layers && !active.info.split_with_cpu {
                 Placement::Gpu
             } else {
                 Placement::Mixed
@@ -951,7 +951,7 @@ impl Engine {
         // Thinking budget: small models can reason until they run out of room and never answer.
         // After 3/4 of the budget, close the reasoning in the model's own format and ask for the answer.
         let budget = ms.max_reply_tokens.unwrap_or(reserve);
-        let may_think = conv.think_harder || matches!(spec.chat.thinking, ThinkingControl::AlwaysOn { .. });
+        let may_think = conv.think_harder || spec.chat.thinking.thinks_by_default();
         let thinking_budget = if may_think { budget * 3 / 4 } else { budget };
         let first = run(plan.prompt.clone(), thinking_budget);
         let result = match first {
