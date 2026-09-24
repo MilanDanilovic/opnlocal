@@ -5,5 +5,8 @@ rustflags = ["-C", "target-feature=+crt-static"]
 
 [env]
 LLAMA_STATIC_CRT = "1"
+# llama.cpp's bundled HTTP client (cpp-httplib) would link OpenSSL where it's found. opnlocal
+# downloads through reqwest/rustls instead, so keep OpenSSL out of every build.
+CMAKE_DISABLE_FIND_PACKAGE_OpenSSL = "ON"
 # ts-rs writes the TypeScript types shared with the UI here (`cargo test export_bindings`).
 TS_RS_EXPORT_DIR = { value = "app/src/lib/bindings", relative = true }

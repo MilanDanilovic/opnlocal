@@ -19,3 +19,7 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+# opnlocal: KeepAwakePlugin is loaded by class name from Rust (register_android_plugin), and its
+# commands/args are found by reflection. Don't strip or rename it.
+-keep class io.github.milandanilovic.opnlocal.KeepAwakePlugin { *; }
+-keep class io.github.milandanilovic.opnlocal.KeepAwakeArgs { *; }

@@ -25,14 +25,16 @@ mkdir -p "$data/tmp"
 curl -sSL -o "$data/tmp/test.gguf" "https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories15M-q4_0.gguf"
 
 SIMCTL_CHILD_OPNLOCAL_SELFTEST="$data/tmp/test.gguf" \
-  xcrun simctl launch --console-pty --terminate-running-process "$device" "$bundle" > "$out/selftest.log" 2>&1 &
-launcher=$!
+  xcrun simctl launch --terminate-running-process "$device" "$bundle"
+# The app writes its self-test lines to selftest.log in its data folder.
+log=""
 for _ in $(seq 1 60); do
-  grep -qE "OPNLOCAL_SELFTEST (OK|FAILED)" "$out/selftest.log" 2>/dev/null && break
+  log=$(find "$data" -name selftest.log 2>/dev/null | head -1)
+  [ -n "$log" ] && grep -qE "OPNLOCAL_SELFTEST (OK|FAILED)" "$log" && break
   sleep 2
 done
-sleep 3
+sleep 2
 xcrun simctl io "$device" screenshot "$out/simulator.png"
-kill "$launcher" 2>/dev/null || true
-grep "OPNLOCAL_SELFTEST" "$out/selftest.log" || true
+[ -n "$log" ] && cp "$log" "$out/selftest.log"
+cat "$out/selftest.log" 2>/dev/null || echo "no self-test output"
 grep -q "OPNLOCAL_SELFTEST OK" "$out/selftest.log"

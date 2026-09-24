@@ -13,8 +13,27 @@ val tauriProperties = Properties().apply {
     }
 }
 
+// Release signing key lives outside the repo (see docs/RELEASING.md). Without it, release
+// builds are produced unsigned.
+val keystoreProperties = Properties().apply {
+    val path = System.getenv("OPNLOCAL_ANDROID_KEYSTORE_PROPERTIES")
+        ?: "${System.getProperty("user.home")}/opnlocal-keys/android-keystore.properties"
+    val f = file(path)
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
 android {
     compileSdk = 36
+    if (keystoreProperties.getProperty("storeFile") != null) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
     namespace = "io.github.milandanilovic.opnlocal"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
@@ -37,6 +56,7 @@ android {
             }
         }
         getByName("release") {
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             isMinifyEnabled = true
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }

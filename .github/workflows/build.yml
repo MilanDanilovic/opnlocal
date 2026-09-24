@@ -43,12 +43,20 @@ jobs:
           export LD_LIBRARY_PATH="$PWD/src-tauri/libs:$LD_LIBRARY_PATH"
           export NO_STRIP=true
           npx tauri build --bundles appimage,deb --verbose
+      - name: Install the .deb and run the self-test (Xvfb)
+        run: |
+          sudo apt-get install -y xvfb imagemagick
+          sudo apt-get install -y ./target/release/bundle/deb/*.deb
+          xvfb-run -a -s "-screen 0 1280x800x24" bash scripts/desktop-selftest.sh /usr/bin/opnlocal target/selftest
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: opnlocal-linux
           path: |
             target/release/bundle/appimage/*.AppImage
             target/release/bundle/deb/*.deb
+            target/selftest/selftest.log
+            target/selftest/screenshot.png
 
   macos:
     if: contains(inputs.platforms, 'macos')
@@ -66,10 +74,16 @@ jobs:
         run: |
           npm ci
           npx tauri build --bundles app,dmg
+      - name: Run the self-test
+        run: bash scripts/desktop-selftest.sh target/release/bundle/macos/opnlocal.app/Contents/MacOS/opnlocal target/selftest
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: opnlocal-macos
-          path: target/release/bundle/dmg/*.dmg
+          path: |
+            target/release/bundle/dmg/*.dmg
+            target/selftest/selftest.log
+            target/selftest/screenshot.png
 
   ios:
     if: contains(inputs.platforms, 'ios')

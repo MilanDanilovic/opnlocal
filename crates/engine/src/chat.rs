@@ -57,7 +57,8 @@ pub fn render(
         ))
     });
     env.add_function("strftime_now", |fmt: String| strftime_now(&fmt));
-    env.add_template("chat", template)
+    let template = strip_generation_tags(template);
+    env.add_template("chat", &template)
         .map_err(|e| ChatError::Template(e.to_string()))?;
 
     let mut ctx = std::collections::BTreeMap::<&str, minijinja::Value>::new();
@@ -85,6 +86,33 @@ pub fn render(
     env.get_template("chat")
         .and_then(|t| t.render(minijinja::Value::from_serialize(&ctx)))
         .map_err(|e| ChatError::Template(e.to_string()))
+}
+
+/// Removes `{% generation %}` / `{% endgeneration %}`: a Hugging Face extension that only marks
+/// assistant text for training masks. It renders nothing, and minijinja doesn't know it.
+fn strip_generation_tags(template: &str) -> String {
+    let mut out = String::with_capacity(template.len());
+    let mut rest = template;
+    while let Some(start) = rest.find("{%") {
+        let Some(len) = rest[start..].find("%}") else { break };
+        let tag = &rest[start..start + len + 2];
+        let inner = &tag[2..tag.len() - 2];
+        let word = inner.trim_matches(|c: char| c == '-' || c == '+' || c.is_whitespace());
+        if word == "generation" || word == "endgeneration" {
+            // Keep the tag's whitespace control: `{%-` trims before it, `-%}` trims after it.
+            let before = &rest[..start];
+            out.push_str(if inner.starts_with('-') { before.trim_end() } else { before });
+            rest = &rest[start + len + 2..];
+            if inner.ends_with('-') {
+                rest = rest.trim_start();
+            }
+        } else {
+            out.push_str(&rest[..start + len + 2]);
+            rest = &rest[start + len + 2..];
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 /// Minimal strftime for templates that print today's date (e.g. "%d %b %Y", "%Y-%m-%d").
@@ -255,6 +283,22 @@ impl ReplyParser {
             ReasoningFormat::Harmony => self.harmony(&mut out),
         }
         out
+    }
+
+    /// True while the model is inside its private reasoning.
+    pub fn is_thinking(&self) -> bool {
+        self.thinking
+    }
+
+    /// What to append to the prompt to end the reasoning early, in this model's own format,
+    /// so it moves on to the answer. None if the format has no reasoning section.
+    pub fn close_thinking(&self) -> Option<&'static str> {
+        match self.format {
+            ReasoningFormat::ThinkTags => Some("\n</think>\n\n"),
+            ReasoningFormat::GemmaChannel => Some("\n<channel|>"),
+            ReasoningFormat::Harmony => Some("<|end|><|start|>assistant<|channel|>final<|message|>"),
+            ReasoningFormat::None => None,
+        }
     }
 
     /// Flushes whatever is held back at the end of the reply.
@@ -450,6 +494,15 @@ mod tests {
     }
 
     #[test]
+    fn training_only_generation_tags_are_ignored() {
+        // LFM2.5's template wraps assistant content in {% generation %} (a transformers extension).
+        let t = "{% for m in messages %}{%- if m.role == 'assistant' -%}{%- generation -%}A:{{ m.content }}{%- endgeneration -%}{%- else -%}U:{{ m.content }}{%- endif -%}{% endfor %}";
+        let none = ThinkingControl::Unsupported;
+        let msgs = [ChatMsg::new("user", "hi"), ChatMsg::new("assistant", "yo")];
+        assert_eq!(render(t, &msgs, &opts(&none, false)).unwrap(), "U:hiA:yo");
+    }
+
+    #[test]
     fn effort_variable_for_always_reasoning_models() {
         let t = "effort={{ reasoning_effort }}";
         let c = ThinkingControl::AlwaysOn {
@@ -512,6 +565,25 @@ mod tests {
         );
         assert_eq!(t, "User wants 2+2.");
         assert_eq!(a, "It's 4.");
+    }
+
+    #[test]
+    fn closing_thinking_early_switches_to_the_answer() {
+        for (format, prompt) in [
+            (ReasoningFormat::ThinkTags, "assistant\n<think>\n"),
+            (ReasoningFormat::GemmaChannel, "<|turn>model\n<|channel>thought"),
+            (ReasoningFormat::Harmony, "<|start|>assistant"),
+        ] {
+            let mut p = ReplyParser::new(format, prompt);
+            let opening = if format == ReasoningFormat::Harmony { "<|channel|>analysis<|message|>" } else { "" };
+            let mut pieces = p.push(&format!("{opening}still pondering"));
+            assert!(p.is_thinking(), "{format:?}");
+            pieces.extend(p.push(p.close_thinking().unwrap()));
+            pieces.extend(p.push("The answer."));
+            pieces.extend(p.finish());
+            assert!(!p.is_thinking(), "{format:?}");
+            assert_eq!(pieces.last(), Some(&Piece::Answer("The answer.".into())), "{format:?}");
+        }
     }
 
     #[test]

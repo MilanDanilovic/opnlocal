@@ -346,7 +346,12 @@ fn worker(backend: &'static LlamaBackend, rx: mpsc::Receiver<Command>) {
         let info = LoadInfo {
             load_ms: started.elapsed().as_millis() as u64,
             context: ctx.n_ctx(),
-            gpu_layers: gpu_layers.min(model.n_layer() as i32 + 1),
+            // llama.cpp uses -1 (and any number above the layer count) for "all layers".
+            gpu_layers: if gpu_layers < 0 {
+                model.n_layer() as i32
+            } else {
+                gpu_layers.min(model.n_layer() as i32)
+            },
             total_layers: model.n_layer(),
             gpu_device,
         };

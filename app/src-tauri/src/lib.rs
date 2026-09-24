@@ -275,30 +275,34 @@ pub fn run() {
         .expect("error while running opnlocal");
 }
 
-/// CI smoke test for platforms we can only run in a simulator (iOS): prints the detected device
-/// and, if `model` is a GGUF path, a short real generation. Lines start with `OPNLOCAL_SELFTEST`.
+/// CI smoke test for platforms we can only run in CI (iOS simulator, macOS, Linux): reports the
+/// detected device and, if `model` is a GGUF path, a short real generation. Lines start with
+/// `OPNLOCAL_SELFTEST`; they go to stdout and to `selftest.log` in the data folder (iOS apps'
+/// stdout isn't always captured).
 fn self_test(engine: Arc<Engine>, model: String) {
     use opnlocal_engine::llm::{GenerateRequest, GpuChoice, LoadOptions, Runtime, SamplingParams};
+    let log_path = engine.store().root().join("selftest.log");
+    let log = move |line: String| {
+        use std::io::Write;
+        println!("{line}");
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+            let _ = writeln!(f, "{line}");
+        }
+    };
     std::thread::spawn(move || {
         let device = engine.detect();
-        println!("OPNLOCAL_SELFTEST device {}", serde_json::to_string(&device).unwrap_or_default());
+        log(format!("OPNLOCAL_SELFTEST device {}", serde_json::to_string(&device).unwrap_or_default()));
         let path = std::path::PathBuf::from(&model);
         if !path.is_file() {
-            println!("OPNLOCAL_SELFTEST no-model");
+            log("OPNLOCAL_SELFTEST no-model".into());
             return;
         }
         let gpu = if device.gpus.is_empty() { GpuChoice::None } else { GpuChoice::All };
         let rt = Runtime::start(None);
-        let loaded = rt.load(
-            LoadOptions { path, context: 512, ubatch: 128, gpu, threads: None, crash_marker: None },
-            |_| {},
-        );
-        match loaded {
-            Ok((info, _)) => println!("OPNLOCAL_SELFTEST loaded gpu_layers={} load_ms={}", info.gpu_layers, info.load_ms),
-            Err(e) => {
-                println!("OPNLOCAL_SELFTEST FAILED load: {e}");
-                return;
-            }
+        let options = LoadOptions { path, context: 512, ubatch: 128, gpu, threads: None, crash_marker: None };
+        match rt.load(options, |_| {}) {
+            Ok((info, _)) => log(format!("OPNLOCAL_SELFTEST loaded gpu_layers={} load_ms={}", info.gpu_layers, info.load_ms)),
+            Err(e) => return log(format!("OPNLOCAL_SELFTEST FAILED load: {e}")),
         }
         let text = Arc::new(std::sync::Mutex::new(String::new()));
         let t2 = text.clone();
@@ -309,13 +313,13 @@ fn self_test(engine: Arc<Engine>, model: String) {
             stop: Default::default(),
         };
         match rt.generate(req, move |p| t2.lock().unwrap().push_str(p)) {
-            Ok(s) => println!(
+            Ok(s) => log(format!(
                 "OPNLOCAL_SELFTEST OK tokens={} tokens_per_second={:.1} text={:?}",
                 s.generated_tokens,
                 s.generation_tokens_per_second().unwrap_or(0.0),
                 text.lock().unwrap()
-            ),
-            Err(e) => println!("OPNLOCAL_SELFTEST FAILED generate: {e}"),
+            )),
+            Err(e) => log(format!("OPNLOCAL_SELFTEST FAILED generate: {e}")),
         }
     });
 }

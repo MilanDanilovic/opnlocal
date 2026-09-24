@@ -936,19 +936,37 @@ impl Engine {
                 }
             }
         };
-        let (p2, e2) = (parser.clone(), emit_pieces.clone());
-        let result = self.runtime.generate(
-            GenerateRequest {
-                prompt: plan.prompt.clone(),
-                max_tokens: ms.max_reply_tokens.unwrap_or(reserve),
-                sampling,
-                stop,
-            },
-            move |text| {
-                let pieces = p2.lock().unwrap().push(text);
-                e2(pieces);
-            },
-        );
+        let raw = Arc::new(Mutex::new(String::new()));
+        let run = |prompt: String, max_tokens: u32| {
+            let (p2, e2, r2) = (parser.clone(), emit_pieces.clone(), raw.clone());
+            self.runtime.generate(
+                GenerateRequest { prompt, max_tokens, sampling, stop: stop.clone() },
+                move |text| {
+                    r2.lock().unwrap().push_str(text);
+                    let pieces = p2.lock().unwrap().push(text);
+                    e2(pieces);
+                },
+            )
+        };
+        // Thinking budget: small models can reason until they run out of room and never answer.
+        // After 3/4 of the budget, close the reasoning in the model's own format and ask for the answer.
+        let budget = ms.max_reply_tokens.unwrap_or(reserve);
+        let may_think = conv.think_harder || matches!(spec.chat.thinking, ThinkingControl::AlwaysOn { .. });
+        let thinking_budget = if may_think { budget * 3 / 4 } else { budget };
+        let first = run(plan.prompt.clone(), thinking_budget);
+        let result = match first {
+            Ok(s) if s.stop_reason == StopReason::MaxTokens
+                && parser.lock().unwrap().is_thinking()
+                && budget > thinking_budget =>
+            {
+                let close = parser.lock().unwrap().close_thinking().unwrap_or_default();
+                let pieces = parser.lock().unwrap().push(close);
+                emit_pieces(pieces);
+                let prompt = format!("{}{}{close}", plan.prompt, raw.lock().unwrap());
+                run(prompt, budget - thinking_budget).map(|second| sum_stats(s, second))
+            }
+            other => other,
+        };
         *self.stop.lock().unwrap() = None;
         let stats = result?;
         emit_pieces(parser.lock().unwrap().finish());
@@ -971,6 +989,16 @@ impl Engine {
         conv.updated_at = store::now();
         self.store.save_conversation(&conv)?;
         Ok(conv)
+    }
+}
+
+/// Combines the two parts of a reply whose thinking was cut short (see `reply`).
+fn sum_stats(a: crate::llm::GenerateStats, b: crate::llm::GenerateStats) -> crate::llm::GenerateStats {
+    crate::llm::GenerateStats {
+        generated_tokens: a.generated_tokens + b.generated_tokens,
+        generation_ms: a.generation_ms + b.generation_ms,
+        stop_reason: b.stop_reason,
+        ..a
     }
 }
 
@@ -1066,6 +1094,101 @@ mod tests {
         assert!(t.ends_with('…') && t.chars().count() <= 61, "{t}");
         let a = Attachment { name: "report.pdf".into(), text: "x".into() };
         assert_eq!(title_from("", &[a]), "report.pdf");
+    }
+
+    /// The whole chat flow through the same API the app uses, with a real (tiny) model imported
+    /// from a local file: import → chat (events streamed) → regenerate → too long → delete.
+    #[test]
+    fn import_chat_regenerate_and_delete_a_local_model() {
+        let _serial = crate::llm::tests::serial();
+        let Some(path) = crate::llm::tests::test_model() else {
+            eprintln!("skipped: test model missing");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let seen = Arc::new(Mutex::new(Vec::<Event>::new()));
+        let s2 = seen.clone();
+        let engine = Engine::new(dir.path(), None, "0.1.0", Arc::new(move |e| s2.lock().unwrap().push(e))).unwrap();
+
+        let size = std::fs::metadata(&path).unwrap().len();
+        let model = engine
+            .import_model("stories15M-q4_0.gguf", std::fs::File::open(&path).unwrap(), size)
+            .unwrap();
+        assert!(engine.state().installed.contains(&model.id));
+        assert!(model.memory.kv_bytes_per_token > 0);
+        engine
+            .update_settings(|s| {
+                s.active_model = Some(model.id.clone());
+                s.per_model.insert(model.id.clone(), ModelSettings { max_reply_tokens: Some(24), ..Default::default() });
+            })
+            .unwrap();
+
+        let conv = engine.send_message(None, "Once upon a time", vec![], false).unwrap();
+        assert_eq!(conv.messages.len(), 2);
+        let reply = &conv.messages[1];
+        assert_eq!(reply.role, Role::Assistant);
+        let stats = reply.stats.as_ref().unwrap();
+        assert!(stats.tokens > 0 && stats.tokens <= 24);
+        {
+            let events = seen.lock().unwrap();
+            assert!(events.iter().any(|e| matches!(e, Event::ChatStarted { .. })));
+            let streamed: String = events
+                .iter()
+                .filter_map(|e| match e {
+                    Event::ChatDelta { answer: Some(a), .. } => Some(a.as_str()),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(streamed.trim_end(), reply.content, "the saved reply is what was streamed");
+        }
+        // Saved to disk and listed.
+        assert_eq!(engine.conversations()[0].id, conv.id);
+
+        let again = engine.regenerate(&conv.id, false).unwrap();
+        assert_eq!(again.messages.len(), 2, "regenerate replaces the last reply");
+
+        let huge = "word ".repeat(6000);
+        match engine.send_message(Some(&conv.id), &huge, vec![], false) {
+            Err(EngineError::MessageTooLong { times_too_long }) => assert!(times_too_long > 1.0),
+            other => panic!("expected MessageTooLong, got {other:?}"),
+        }
+
+        engine.delete_model(&model.id).unwrap();
+        assert!(!engine.state().installed.contains(&model.id));
+        assert!(engine.state().imported.is_empty());
+        assert!(engine.state().loaded.is_none());
+    }
+
+    #[test]
+    fn importing_a_file_that_is_not_a_model_is_refused_cleanly() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = Engine::new(dir.path(), None, "0.1.0", Arc::new(|_| {})).unwrap();
+        let r = engine.import_model("notes.gguf", &b"this is not a model"[..], 19);
+        assert!(matches!(r, Err(EngineError::BadModelFile { .. })));
+        assert!(engine.state().imported.is_empty());
+        assert_eq!(std::fs::read_dir(engine.store().models_dir()).unwrap().count(), 0, "no leftovers");
+    }
+
+    #[test]
+    fn gpu_crash_marker_from_a_previous_run_turns_gpu_off() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("gpu-load.marker"), "/models/qwen3.5-4b.gguf\nAMD Radeon RX 7800 XT").unwrap();
+        let engine = Engine::new(dir.path(), None, "0.1.0", Arc::new(|_| {})).unwrap();
+        let s = engine.state().settings;
+        assert!(!s.gpu_allowed());
+        let crash = s.gpu_crash.unwrap();
+        assert_eq!((crash.model_id.as_str(), crash.device.as_str()), ("qwen3.5-4b", "AMD Radeon RX 7800 XT"));
+        assert!(!dir.path().join("gpu-load.marker").exists());
+    }
+
+    #[test]
+    fn license_must_be_accepted_before_download() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = Engine::new(dir.path(), None, "0.1.0", Arc::new(|_| {})).unwrap();
+        let custom = engine.state().models.into_iter().find(|m| m.license.requires_acceptance).unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let r = rt.block_on(engine.download(&custom.id));
+        assert!(matches!(r, Err(EngineError::LicenseNotAccepted { .. })));
     }
 
     #[test]
