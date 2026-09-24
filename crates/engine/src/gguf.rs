@@ -122,7 +122,7 @@ fn skip_value(r: &mut impl Read, ty: u32) -> Result<(), GgufError> {
     let n = match ty {
         0 | 1 | 7 => 1,
         2 | 3 => 2,
-        4 | 5 | 6 => 4,
+        4..=6 => 4,
         10..=12 => 8,
         8 => {
             let len = u64_le(r)?;
@@ -245,7 +245,7 @@ impl Header {
         // Hybrid models (e.g. Qwen3.5): only every Nth layer has attention; the rest are recurrent.
         if let Some(interval) = self.arch_u64("full_attention_interval").filter(|i| *i > 1) {
             for (i, h) in kv_heads.iter_mut().enumerate() {
-                if (i as u64 + 1) % interval != 0 {
+                if !(i as u64 + 1).is_multiple_of(interval) {
                     *h = 0;
                 }
             }

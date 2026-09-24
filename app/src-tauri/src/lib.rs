@@ -155,7 +155,7 @@ fn open_picked(app: &tauri::AppHandle, path: &str) -> Res<(String, std::fs::File
         tauri_plugin_fs::FilePath::Url(u) => u
             .path_segments()
             .and_then(|mut s| s.next_back())
-            .map(|s| percent_decode(s)),
+            .map(percent_decode),
     }
     .unwrap_or_else(|| "document".into());
     // OpenOptions' fields are private; its serde defaults give read-only access.

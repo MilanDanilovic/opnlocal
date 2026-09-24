@@ -1191,6 +1191,21 @@ mod tests {
         assert!(matches!(r, Err(EngineError::LicenseNotAccepted { .. })));
     }
 
+    /// The published catalog verifies with the built-in key (run with `--ignored`; needs internet).
+    #[test]
+    #[ignore = "network: fetches the live catalog from GitHub"]
+    fn live_catalog_verifies_with_the_built_in_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = Engine::new(dir.path(), None, "0.1.0", Arc::new(|_| {})).unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let r = rt.block_on(engine.refresh_catalog(true)).unwrap();
+        assert!(r.checked);
+        assert!(r.version >= engine.state().catalog_version);
+        assert!(engine.store().settings().last_catalog_check.is_some());
+        // Automatic checks right after are skipped (at most once a day).
+        assert!(!rt.block_on(engine.refresh_catalog(false)).unwrap().checked);
+    }
+
     #[test]
     fn errors_serialize_for_the_ui_without_clashing_tags() {
         let e = EngineError::Download { error: DownloadError::Offline };

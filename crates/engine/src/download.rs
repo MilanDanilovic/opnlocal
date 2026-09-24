@@ -146,10 +146,9 @@ pub async fn download(
     on_progress: &(dyn Fn(Progress) + Send + Sync),
 ) -> Result<(), DownloadError> {
     let result = download_inner(client, req, cancel, opts, on_progress).await;
-    match &result {
-        // Cancel means "I don't want this": clean up. Corrupt data is useless too.
-        Err(DownloadError::Cancelled | DownloadError::Corrupt) => discard_partial(&req.dest),
-        _ => {}
+    // Cancel means "I don't want this": clean up. Corrupt data is useless too.
+    if let Err(DownloadError::Cancelled | DownloadError::Corrupt) = &result {
+        discard_partial(&req.dest);
     }
     result
 }
