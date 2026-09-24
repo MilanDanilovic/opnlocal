@@ -18,20 +18,30 @@ chmod +x "$appimage"
 "$appimage" --appimage-extract > /dev/null
 root=squashfs-root
 
-# The Ubuntu package of each bundled library. Everything else must be one of ours (listed below).
+# The Ubuntu package of each bundled file: files under usr/share by their exact path, the rest
+# (libraries, typelibs, plugins; linuxdeploy flattens their folders) by name in the system library
+# folders only, since apps in /opt, like a browser, ship their own copies. Files from no package
+# (AppRun, generated caches, opnlocal's own) are fine; libraries from no package must be ours.
 declare -A packages
-while read -r lib; do
-  base=$(basename "$lib")
-  pkg=$(dpkg -S "*/$base" 2> /dev/null | head -1 | cut -d: -f1 | cut -d, -f1 || true)
+vulkan=""
+while read -r file; do
+  path=${file#"$root"}
+  base=$(basename "$file")
+  case "$base" in libggml* | libllama*) continue ;; esac # ours (the opnlocal .deb, if installed, is skipped too)
+  case "$path" in
+    /usr/share/*) found=$(dpkg -S "$path" 2> /dev/null || true) ;;
+    *) found=$(dpkg -S "*/$base" 2> /dev/null | grep -E ': /(usr/)?lib/' || true) ;;
+  esac
+  pkg=$(echo "$found" | grep -v '^opnlocal:' | head -1 | cut -d: -f1 | cut -d, -f1 || true)
   if [ -n "$pkg" ]; then
     packages[$pkg]=1
-  else
-    case "$base" in
-      libggml* | libllama* | libvulkan.so*) ;;
-      *) echo "Unknown bundled library $lib: find its license and add it to $0" >&2; exit 1 ;;
-    esac
+  elif [[ $base == libvulkan.so* ]]; then
+    vulkan=" and the Khronos Vulkan loader from the LunarG Vulkan SDK (libvulkan.so.1; Apache License 2.0)"
+  elif [[ $base == *.so || $base == *.so.* ]]; then
+    echo "Unknown bundled library $path: find its license and add it to $0" >&2
+    exit 1
   fi
-done < <(find "$root" -name "*.so*" -type f)
+done < <(find "$root" -type f)
 mapfile -t sorted < <(printf '%s\n' "${!packages[@]}" | sort)
 
 for pkg in "${sorted[@]}"; do
@@ -47,8 +57,8 @@ opnlocal AppImage: bundled libraries
 opnlocal is licensed under the Apache License 2.0. The open-source components built into it are
 listed in THIRD_PARTY_NOTICES.txt, also shown in the app under Settings, About.
 
-So that it runs on many Linux systems, this AppImage also bundles the libraries of the Ubuntu
-22.04 packages listed below, unmodified. Each stays under its own license. Every package's
+So that it runs on many Linux systems, this AppImage also bundles libraries and data files from
+the Ubuntu 22.04 packages listed below, unmodified. Each stays under its own license. Every package's
 copyright and license file is in usr/share/doc/<package>/copyright inside this AppImage (run the
 AppImage with --appimage-extract to see them).
 
@@ -62,8 +72,7 @@ published next to this AppImage on its release page as $name.sources.tar
 https://github.com/MilanDanilovic/opnlocal.
 
 Also bundled: opnlocal's llama.cpp libraries (libggml*, libllama*; MIT, see
-THIRD_PARTY_NOTICES.txt) and the Khronos Vulkan loader from the LunarG Vulkan SDK
-(libvulkan.so.1; Apache License 2.0).
+THIRD_PARTY_NOTICES.txt)$vulkan.
 
 Ubuntu packages (name, version):
 

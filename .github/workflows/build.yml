@@ -37,10 +37,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf file libclang-dev squashfs-tools dpkg-dev
           # Source packages, for the AppImage's bundled libraries (scripts/appimage-licenses.sh).
+          # Ubuntu only keeps the source of current versions, so bring the runner's preinstalled
+          # libraries up to date first.
           for s in jammy jammy-updates jammy-security; do
             echo "deb-src http://archive.ubuntu.com/ubuntu $s main restricted universe multiverse"
           done | sudo tee /etc/apt/sources.list.d/opnlocal-src.list
           sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
       - name: Vulkan SDK (headers + glslc)
         run: |
           V=1.4.321.1
@@ -61,13 +64,13 @@ jobs:
           npx tauri build --bundles appimage,deb --verbose
       - name: No OpenSSL linked (THIRD_PARTY_NOTICES doesn't cover it)
         run: "! ldd target/release/opnlocal app/src-tauri/libs/*.so* 2>/dev/null | grep -i libssl"
-      - name: AppImage license files and sources
-        run: bash scripts/appimage-licenses.sh target/release/bundle/appimage/*.AppImage
       - name: Install the .deb and run the self-test (Xvfb)
         run: |
           sudo apt-get install -y xvfb imagemagick
           sudo apt-get install -y ./target/release/bundle/deb/*.deb
           xvfb-run -a -s "-screen 0 1280x800x24" bash scripts/desktop-selftest.sh /usr/bin/opnlocal target/selftest
+      - name: AppImage license files and sources
+        run: bash scripts/appimage-licenses.sh target/release/bundle/appimage/*.AppImage
       - name: Self-test the AppImage (Xvfb)
         run: |
           export APPIMAGE_EXTRACT_AND_RUN=1
