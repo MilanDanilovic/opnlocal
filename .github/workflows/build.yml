@@ -1,5 +1,5 @@
 # Builds installable packages for the platforms that can't be built on the Windows dev machine.
-# Manual trigger only: macOS minutes are expensive on a private repo.
+# Manual trigger only: macOS minutes are expensive, and pull requests from forks never run it.
 name: build
 
 on:
@@ -9,8 +9,15 @@ on:
         description: "Comma-separated: linux,macos,ios,windows,android"
         default: "linux,macos,ios"
 
+# The jobs only read the code; they get no write access and use no secrets.
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
+  # Rust build cache name. Bump it after changing [env] in .cargo/config.toml: an older cache
+  # keeps llama.cpp built with the old settings (v1: rebuild without OpenSSL).
+  CACHE_PREFIX: v1-rust
 
 jobs:
   linux:
@@ -19,14 +26,21 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: stable
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: System packages
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf file libclang-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf file libclang-dev squashfs-tools dpkg-dev
+          # Source packages, for the AppImage's bundled libraries (scripts/appimage-licenses.sh).
+          for s in jammy jammy-updates jammy-security; do
+            echo "deb-src http://archive.ubuntu.com/ubuntu $s main restricted universe multiverse"
+          done | sudo tee /etc/apt/sources.list.d/opnlocal-src.list
+          sudo apt-get update
       - name: Vulkan SDK (headers + glslc)
         run: |
           V=1.4.321.1
@@ -34,7 +48,9 @@ jobs:
           mkdir -p "$HOME/vulkan" && tar -xf vk.tar.xz -C "$HOME/vulkan"
           echo "VULKAN_SDK=$HOME/vulkan/$V/x86_64" >> "$GITHUB_ENV"
           echo "$HOME/vulkan/$V/x86_64/bin" >> "$GITHUB_PATH"
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          prefix-key: ${{ env.CACHE_PREFIX }}
       - name: Build
         working-directory: app
         run: |
@@ -43,32 +59,47 @@ jobs:
           export LD_LIBRARY_PATH="$PWD/src-tauri/libs:$LD_LIBRARY_PATH"
           export NO_STRIP=true
           npx tauri build --bundles appimage,deb --verbose
+      - name: No OpenSSL linked (THIRD_PARTY_NOTICES doesn't cover it)
+        run: "! ldd target/release/opnlocal app/src-tauri/libs/*.so* 2>/dev/null | grep -i libssl"
+      - name: AppImage license files and sources
+        run: bash scripts/appimage-licenses.sh target/release/bundle/appimage/*.AppImage
       - name: Install the .deb and run the self-test (Xvfb)
         run: |
           sudo apt-get install -y xvfb imagemagick
           sudo apt-get install -y ./target/release/bundle/deb/*.deb
           xvfb-run -a -s "-screen 0 1280x800x24" bash scripts/desktop-selftest.sh /usr/bin/opnlocal target/selftest
+      - name: Self-test the AppImage (Xvfb)
+        run: |
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          xvfb-run -a -s "-screen 0 1280x800x24" bash scripts/desktop-selftest.sh "$(ls target/release/bundle/appimage/*.AppImage)" target/selftest-appimage
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: opnlocal-linux
           path: |
             target/release/bundle/appimage/*.AppImage
+            target/release/bundle/appimage/*.sources.tar
             target/release/bundle/deb/*.deb
             target/selftest/selftest.log
             target/selftest/screenshot.png
+            target/selftest-appimage/selftest.log
+            target/selftest-appimage/screenshot.png
 
   macos:
     if: contains(inputs.platforms, 'macos')
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: stable
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: brew install cmake
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          prefix-key: ${{ env.CACHE_PREFIX }}
       - name: Build
         working-directory: app
         run: |
@@ -90,15 +121,18 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
+          toolchain: stable
           targets: aarch64-apple-ios,aarch64-apple-ios-sim
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: brew install cmake xcodegen
       - run: xcodebuild -version
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          prefix-key: ${{ env.CACHE_PREFIX }}
       - name: Generate Xcode project
         working-directory: app
         run: |

@@ -2,7 +2,8 @@
 
 ## Keys (never in the repo)
 
-Kept in `C:\Users\mdani\opnlocal-keys\` (outside the repo). **Back these up somewhere safe**:
+Kept in `~/opnlocal-keys/` on the maintainer's machine, outside the repo (see
+[CATALOG.md](CATALOG.md) for how the catalog key is trusted). **Back these up somewhere safe**:
 losing the catalog key means installed apps can never accept a new model list; losing the
 Android key means Google Play updates need a key reset.
 
@@ -20,7 +21,8 @@ only then start signing with the new key.
 2. Full test pass (see TESTING.md), including the real-app test and `catalog-tool verify`.
 3. Windows: `npx tauri build --bundles nsis` (see BUILDING.md).
 4. Android: `npx tauri android build --target aarch64` with `GGML_CPU_ARM_ARCH` set.
-5. Run the `build` workflow for `linux,macos,ios` and download the artifacts.
+5. Run the `build` workflow for `linux,macos,ios` and download the artifacts. The AppImage's
+   `.sources.tar` must be published on the same release page as the AppImage (LGPL/GPL).
 6. If the catalog changed: sign it and publish to `MilanDanilovic/opnlocal-catalog`.
 
 ## Signing status (v0.1.0)

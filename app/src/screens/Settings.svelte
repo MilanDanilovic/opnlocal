@@ -191,6 +191,10 @@
     <section class="card stack" aria-labelledby="about">
       <h2 id="about"><Icon name="info" /> {t.settings.about}</h2>
       <p>{t.settings.version(app.state?.app_version ?? "")}</p>
+      <p class="small">
+        {t.settings.license}
+        <button class="link" onclick={async () => (await backend()).openUrl(t.settings.sourceUrl)}>{t.settings.source}</button>
+      </p>
       <details>
         <summary>{t.settings.notices}</summary>
         <p class="small muted">{t.settings.noticesLead}</p>
@@ -262,6 +266,15 @@
   }
   .notices {
     padding-left: 1.2rem;
+  }
+  .link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
   }
   .report.tall {
     max-height: 60vh;

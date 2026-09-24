@@ -74,6 +74,11 @@ or push and run the `build` workflow with `platforms=linux`. Packages needed on 
 Vulkan SDK tarball for headers and `glslc` (see the workflow). The app finds its llama.cpp
 libraries through an rpath (`$ORIGIN:$ORIGIN/../lib/opnlocal`).
 
+The AppImage bundles GTK, WebKitGTK and other Ubuntu libraries, many under the LGPL. After the
+build, `scripts/appimage-licenses.sh` adds their license files and a notice to the AppImage and
+writes `<name>.sources.tar` with their source packages (the workflow and `build-linux.sh` run
+it). Publish that tar on the same release page as the AppImage.
+
 ## macOS
 
 Xcode (command line tools), then:

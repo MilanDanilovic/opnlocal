@@ -23,7 +23,7 @@ quantization or an inference engine is.
 | Model files | Downloaded from Hugging Face at a pinned commit and verified by sha256 | No login needed; nothing is redistributed by us. |
 | Storage | Models in the app data folder. Conversations and settings as JSON files. | Nothing to migrate, nothing to corrupt at scale. |
 | Network | Only (1) catalog refresh, (2) model downloads the user starts | No analytics, crash reports or update pings. |
-| Code license | All rights reserved (private repo). Permissive dependencies only. | Opening it up later stays easy. |
+| Code license | Apache-2.0 (from 2026-09-24; earlier commits were all rights reserved). Permissive dependencies only (plus MPL-2.0, copyleft per file). | Free and open source with a patent grant; paid store builds remain possible. |
 
 ## Platform support matrix (v1)
 
@@ -77,9 +77,11 @@ quantization or an inference engine is.
 - **Apple linking.** macOS needs clang's runtime library linked explicitly (ggml-metal's
   `@available` checks); iOS needs the Accelerate framework declared in the Xcode project.
 - **Licenses** (full review of 598 crates, npm, Android libraries, llama.cpp vendored code): no
-  copyleft ships. Notices are generated (`scripts/generate-notices.mjs`) and shown in the app.
-  Open point: the Linux **AppImage** bundles LGPL system libraries (GTK/WebKitGTK), which brings
-  LGPL redistribution duties; the `.deb` does not. Decide before publishing the AppImage.
+  strong copyleft ships (four MPL-2.0 crates are copyleft per file only, and are unmodified).
+  Notices are generated (`scripts/generate-notices.mjs`) and shown in the app. The Linux
+  **AppImage** bundles Ubuntu's GTK/WebKitGTK and more (many LGPL, some parts GPL); the `.deb`
+  doesn't. It ships anyway, with each library's license file inside and their source packages
+  on the release page (`scripts/appimage-licenses.sh`).
 
 ## Research summary (2026-09-23)
 

@@ -5,7 +5,7 @@ members = ["crates/engine", "crates/catalog-tool", "app/src-tauri"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-license = "LicenseRef-Proprietary"
+license = "Apache-2.0"
 publish = false
 
 [profile.release]

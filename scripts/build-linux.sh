@@ -6,7 +6,13 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y curl build-essential pkg-config file patchelf xz-utils git \
-  libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libclang-dev libssl-dev
+  libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libclang-dev libssl-dev \
+  squashfs-tools dpkg-dev
+# Source packages, for the AppImage's bundled libraries (scripts/appimage-licenses.sh).
+for s in jammy jammy-updates jammy-security; do
+  echo "deb-src http://archive.ubuntu.com/ubuntu $s main restricted universe multiverse"
+done > /etc/apt/sources.list.d/opnlocal-src.list
+apt-get update
 
 if ! command -v cargo >/dev/null; then
   curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
@@ -34,4 +40,5 @@ export LD_LIBRARY_PATH="$PWD/src-tauri/libs:${LD_LIBRARY_PATH:-}"
 export NO_STRIP=true
 export APPIMAGE_EXTRACT_AND_RUN=1   # no FUSE inside containers
 npx tauri build --bundles appimage,deb
+bash ../scripts/appimage-licenses.sh "$CARGO_TARGET_DIR"/release/bundle/appimage/*.AppImage
 ls -la "$CARGO_TARGET_DIR/release/bundle/appimage" "$CARGO_TARGET_DIR/release/bundle/deb"

@@ -9,7 +9,7 @@ details and benchmark results stay on the device.
 |---|---|---|---|
 | The user taps *Download* for a model | `huggingface.co` (then a Hugging Face CDN it redirects to) | A standard HTTPS request for one pinned file, with `Range` headers when resuming. User agent `opnlocal/<version>`. | It only happens on request. |
 | At most once a day, and *Check now* in Settings | `raw.githubusercontent.com` (the public repo `MilanDanilovic/opnlocal-catalog`) | Two HTTPS GET requests (`catalog.json`, `catalog.json.sig`). No parameters, no identifiers. | Settings → Privacy → "Check for new models automatically". |
-| Opening a license link | The link's site, in the system browser | Whatever the browser sends | Only on tap. |
+| Opening a license or *Source code* link | The link's site, in the system browser | Whatever the browser sends | Only on tap. |
 
 Never: analytics, telemetry, crash reports, accounts, advertising IDs, update pings, or sending
 prompts, replies, documents, or device information anywhere.

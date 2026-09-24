@@ -27,6 +27,6 @@ targets = [
 ignore-build-dependencies = true
 ignore-dev-dependencies = true
 
-# Our own crates (publish = false) are proprietary, not third-party.
+# Our own crates (publish = false) are opnlocal itself (Apache-2.0, see LICENSE), not third-party.
 [private]
 ignore = true

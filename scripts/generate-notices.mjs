@@ -3,7 +3,7 @@
 //   1. Rust crates, via cargo-about (about.toml / about.hbs) — fails on a non-allowed license
 //   2. native code compiled into llama.cpp (read from the llama-cpp-sys-2 sources)
 //   3. npm packages bundled into the UI
-//   4. Android libraries (Apache-2.0) and Jackson's NOTICE
+//   4. Android libraries (Apache-2.0), with Jackson's NOTICE files from its jar
 //   5. Microsoft WebView2 loader (Windows), license from the official NuGet package
 // Usage: node scripts/generate-notices.mjs   (needs `cargo install cargo-about`)
 import { execFileSync } from "node:child_process";
@@ -51,22 +51,14 @@ for (const name of pkgs) {
   add(`${name} ${pkg.version} (${pkg.license})${name === "dompurify" ? " — used under Apache-2.0" : ""}`, file ? readFileSync(join(dir, file), "utf8") : `License: ${pkg.license}`);
 }
 
-// 4. Android libraries
-add(
-  "Android app (AndroidX, Material Components, Kotlin, kotlinx.coroutines, Jackson) — Apache-2.0",
-  `The Android build includes libraries by Google, JetBrains and FasterXML under the Apache
-License 2.0 (full text above, under Rust crates). Jackson NOTICE:
-
-Jackson is a high-performance JSON processor (parser, generator). Jackson is licensed under
-the Apache License 2.0. Jackson core includes FastDoubleParser (MIT, Copyright (c) 2023 Werner
-Randelshofer) and bigint (BSD-2-Clause, Copyright 2020 Tim Buktu).`,
-);
-
-// 5. Microsoft WebView2 loader, statically linked on Windows by webview2-com-sys
-const tmp = mkdtempSync(join(tmpdir(), "webview2-"));
-const nupkg = join(tmp, "webview2.zip");
-execFileSync("curl", ["-sSL", "-o", nupkg, "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2"]);
-// A .nupkg is a zip; Python's zipfile reads it on every OS (GNU tar can't).
+// Downloads (curl) and zip reading (Python's zipfile, which reads a .jar or .nupkg on every OS;
+// GNU tar can't). Raw bytes go to stdout so non-ASCII text survives Windows' console encoding.
+const tmp = mkdtempSync(join(tmpdir(), "notices-dl-"));
+const download = (url, name) => {
+  const file = join(tmp, name);
+  execFileSync("curl", ["-sSfL", "-o", file, url]);
+  return file;
+};
 const python = ["python3", "python", "py"].find((p) => {
   try {
     execFileSync(p, ["--version"], { stdio: "ignore" });
@@ -75,8 +67,29 @@ const python = ["python3", "python", "py"].find((p) => {
     return false;
   }
 });
-const webview2License = execFileSync(python, ["-c", "import sys, zipfile; sys.stdout.write(zipfile.ZipFile(sys.argv[1]).read('LICENSE.txt').decode())", nupkg], { encoding: "utf8" });
-add("Microsoft Edge WebView2 SDK loader (Windows builds)", webview2License);
+const unzipText = (zip, entry) =>
+  execFileSync(python, ["-c", "import sys, zipfile; sys.stdout.buffer.write(zipfile.ZipFile(sys.argv[1]).read(sys.argv[2]))", zip, entry], { encoding: "utf8" });
+
+// 4. Android libraries
+add(
+  "Android app (AndroidX, Material Components, Kotlin, kotlinx.coroutines) — Apache-2.0",
+  "The Android build includes libraries by Google and JetBrains under the Apache License 2.0\n(full text above, under Rust crates).",
+);
+// Jackson comes with Tauri's Android library. jackson-core's NOTICE files are reproduced as its jar
+// ships them; its NOTICE contains the (identical) NOTICE of jackson-databind and jackson-annotations.
+const tauri = meta.packages.find((p) => p.name === "tauri");
+const jackson = readFileSync(join(dirname(tauri.manifest_path), "mobile", "android", "build.gradle.kts"), "utf8").match(/jackson-databind:([\d.]+)/)[1];
+const jacksonCore = download(`https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/${jackson}/jackson-core-${jackson}.jar`, "jackson-core.jar");
+add(
+  `Jackson ${jackson} (jackson-databind, jackson-core, jackson-annotations) — Apache-2.0`,
+  ["NOTICE", "FastDoubleParser-NOTICE", "FastDoubleParser-LICENSE", "bigint-LICENSE"]
+    .map((f) => `${f}:\n\n${unzipText(jacksonCore, `META-INF/${f}`).trim()}`)
+    .join("\n\n"),
+);
+
+// 5. Microsoft WebView2 loader, statically linked on Windows by webview2-com-sys
+const webview2 = download("https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2", "webview2.zip");
+add("Microsoft Edge WebView2 SDK loader (Windows builds)", unzipText(webview2, "LICENSE.txt"));
 
 const out = `${rust.trim()}\n\nOther components\n----------------\n\n${sections.join("\n")}`;
 writeFileSync(join(root, "THIRD_PARTY_NOTICES.txt"), out);
