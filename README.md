@@ -4,9 +4,10 @@
 opnlocal checks what your computer or phone can handle, picks a model that fits, downloads
 it, measures how fast it really runs, and lets you chat. Your chats never leave the device.
 
-![opnlocal recommending models for this PC: "Good picks for everyday help on this device"](docs/images/recommendations.png)
+![opnlocal on a Windows PC: device check, model picks, download, speed test, then a chat](docs/images/demo.gif)
 
-*The real app on a Windows PC, recommending models for everyday help.*
+*The real app on a Windows PC with a fresh install. The 5.7 GB download and the speed test are sped
+up 30×; everything else is real time.*
 
 ## Download
 
@@ -55,8 +56,8 @@ import your own `.gguf` file in Settings → Advanced.
 
 Apart from links you tap, opnlocal connects to the internet for exactly two things: model
 downloads you start (huggingface.co), and a signed model list checked at most once a day
-(github.com; you can turn it off). No accounts, analytics, crash reports or telemetry. There is no local server and no
-open port. Details: [docs/PRIVACY.md](docs/PRIVACY.md).
+(github.com; you can turn it off). No accounts, analytics, crash reports or telemetry. There is
+no local server and no open port. Details: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## What's been tested (v0.1.0)
 
