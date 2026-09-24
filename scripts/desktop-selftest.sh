@@ -5,8 +5,9 @@
 # Linux: run under xvfb-run. macOS: needs a GUI session (GitHub macOS runners have one).
 set -euo pipefail
 exe="$1"
-out="$2"
-mkdir -p "$out"
+# Absolute, since an AppImage's launcher changes the working directory.
+mkdir -p "$2"
+out=$(cd "$2" && pwd)
 model="$out/test.gguf"
 [ -f "$model" ] || curl -sSL -o "$model" "https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories15M-q4_0.gguf"
 
