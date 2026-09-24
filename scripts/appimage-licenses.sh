@@ -19,8 +19,9 @@ chmod +x "$appimage"
 root=squashfs-root
 
 # The Ubuntu package of each bundled file: files under usr/share by their exact path, the rest
-# (libraries, typelibs, plugins; linuxdeploy flattens their folders) by name in the system library
-# folders only, since apps in /opt, like a browser, ship their own copies. Files from no package
+# (libraries, typelibs, plugins; linuxdeploy flattens their folders) by name in Ubuntu's library
+# folders only, since other apps on the machine (a browser in /opt, a CLI in /usr/lib/<name>)
+# ship their own copies. Files from no package
 # (AppRun, generated caches, opnlocal's own) are fine; libraries from no package must be ours.
 declare -A packages
 vulkan=""
@@ -30,9 +31,13 @@ while read -r file; do
   case "$base" in libggml* | libllama*) continue ;; esac # ours (the opnlocal .deb, if installed, is skipped too)
   case "$path" in
     /usr/share/*) found=$(dpkg -S "$path" 2> /dev/null || true) ;;
-    *) found=$(dpkg -S "*/$base" 2> /dev/null | grep -E ': /(usr/)?lib/' || true) ;;
+    *) found=$(dpkg -S "*/$base" 2> /dev/null | grep -E ': /(usr/)?lib/x86_64-linux-gnu/' || true) ;;
   esac
-  pkg=$(echo "$found" | grep -v '^opnlocal:' | head -1 | cut -d: -f1 | cut -d, -f1 || true)
+  # First Ubuntu-style match: not ours, and with a copyright file.
+  pkg=""
+  for candidate in $(echo "$found" | grep -v '^opnlocal:' | cut -d: -f1 | cut -d, -f1 || true); do
+    if [ -f "/usr/share/doc/$candidate/copyright" ]; then pkg=$candidate; break; fi
+  done
   if [ -n "$pkg" ]; then
     packages[$pkg]=1
   elif [[ $base == libvulkan.so* ]]; then
