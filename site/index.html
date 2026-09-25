@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>opnlocal | Local AI made simple</title>
+  <meta name="description" content="Run AI privately on your own device. opnlocal detects your hardware, recommends a model that fits, downloads it, benchmarks it, and lets you chat locally." />
+  <link rel="canonical" href="https://milandanilovic.github.io/opnlocal/" />
+  <link rel="icon" href="icon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="icon.png" />
+  <meta name="theme-color" content="#f7f6f3" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#141413" media="(prefers-color-scheme: dark)" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="opnlocal" />
+  <meta property="og:title" content="opnlocal | Local AI made simple" />
+  <meta property="og:description" content="Run AI privately on your own device. opnlocal detects your hardware, recommends a model that fits, downloads it, benchmarks it, and lets you chat locally." />
+  <meta property="og:url" content="https://milandanilovic.github.io/opnlocal/" />
+  <meta property="og:image" content="https://milandanilovic.github.io/opnlocal/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="opnlocal: run AI locally without learning how local AI works." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="opnlocal | Local AI made simple" />
+  <meta name="twitter:description" content="Run AI privately on your own device. opnlocal detects your hardware, recommends a model that fits, downloads it, benchmarks it, and lets you chat locally." />
+  <meta name="twitter:image" content="https://milandanilovic.github.io/opnlocal/og.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&display=swap" />
+  <link rel="stylesheet" href="style.css" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "opnlocal",
+    "applicationCategory": "UtilitiesApplication",
+    "operatingSystem": "Windows, macOS, Linux, Android, iOS",
+    "description": "Run AI privately on your own device. opnlocal detects your hardware, recommends a model that fits, downloads it, benchmarks it, and lets you chat locally.",
+    "license": "https://www.apache.org/licenses/LICENSE-2.0",
+    "isAccessibleForFree": true,
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "url": "https://milandanilovic.github.io/opnlocal/",
+    "downloadUrl": "https://github.com/MilanDanilovic/opnlocal/releases/latest",
+    "codeRepository": "https://github.com/MilanDanilovic/opnlocal"
+  }
+  </script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <a class="brand" href="#" aria-label="opnlocal, home">
+      <svg width="28" height="28" viewBox="0 0 1024 1024" aria-hidden="true">
+        <rect x="64" y="64" width="896" height="896" rx="208" fill="var(--accent)" />
+        <circle cx="512" cy="512" r="236" fill="none" stroke="var(--accent-contrast)" stroke-width="88" />
+        <circle cx="512" cy="512" r="74" fill="var(--accent-contrast)" />
+      </svg>
+      <span>opnlocal</span>
+    </a>
+    <nav class="top-nav" aria-label="Site">
+      <a href="#how">How it works</a>
+      <a href="#privacy">Privacy</a>
+      <a href="https://github.com/MilanDanilovic/opnlocal">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero">
+      <div class="hero-copy">
+        <h1>Run AI locally without learning how local AI works.</h1>
+        <p class="lead">opnlocal checks your device, finds AI models that actually fit, downloads one, benchmarks it, and lets you chat privately on your own hardware.</p>
+        <div class="cta">
+          <a class="btn primary" id="download" href="https://github.com/MilanDanilovic/opnlocal/releases/latest/download/opnlocal-windows-setup.exe">Download for Windows</a>
+          <a class="btn" href="https://github.com/MilanDanilovic/opnlocal">View on GitHub</a>
+        </div>
+        <p class="fine">Free and open source. No account. No telemetry.</p>
+        <p class="fine"><a id="all-downloads" href="https://github.com/MilanDanilovic/opnlocal/releases/latest">All downloads, for every platform</a></p>
+      </div>
+
+      <!-- Step one, already running: what this browser can tell about the device. -->
+      <aside class="device" aria-label="What your browser reports about this device">
+        <p class="device-title"><span class="dot" aria-hidden="true"></span> Your device, as this browser reports it</p>
+        <dl>
+          <div><dt>System</dt><dd id="d-os">—</dd></div>
+          <div><dt>Processor threads</dt><dd id="d-cores">—</dd></div>
+          <div><dt>Memory, graphics, storage</dt><dd class="soft">opnlocal checks these when it runs</dd></div>
+        </dl>
+        <p class="device-note">Everything stays on this device. The app never sends any of it anywhere.</p>
+      </aside>
+    </section>
+
+    <section class="demo" aria-labelledby="demo-h">
+      <h2 id="demo-h">Your hardware. Your model. Your AI.</h2>
+      <p class="section-lead">There are hundreds of models and dozens of ways to shrink each one. opnlocal reads what your device has and offers only what fits, so you pick between a few plain choices instead of a spreadsheet.</p>
+      <figure class="window">
+        <div class="window-bar" aria-hidden="true"><span></span><span></span><span></span><em>opnlocal</em></div>
+        <img src="demo.gif" width="900" height="580" alt="opnlocal on a Windows PC: device check, model picks, download, speed test, then a chat" loading="lazy" />
+        <figcaption>The real app on a Windows PC with a fresh install. The download and the speed test are sped up 30×; everything else is real time.</figcaption>
+      </figure>
+    </section>
+
+    <section class="how" id="how" aria-labelledby="how-h">
+      <h2 id="how-h">How it works</h2>
+      <ol class="steps">
+        <li>
+          <span class="n" aria-hidden="true">1</span>
+          <h3>Check your device</h3>
+          <p>opnlocal checks memory, graphics, processor and free storage.</p>
+        </li>
+        <li>
+          <span class="n" aria-hidden="true">2</span>
+          <h3>Tell it what you need</h3>
+          <p>Everyday help, coding, writing, or private documents.</p>
+        </li>
+        <li>
+          <span class="n" aria-hidden="true">3</span>
+          <h3>Pick from a few recommendations</h3>
+          <p>Not hundreds of model names and quantization options. Just <em>Recommended</em>, <em>Lighter &amp; faster</em>, or <em>Stronger, but tight</em>.</p>
+        </li>
+        <li>
+          <span class="n" aria-hidden="true">4</span>
+          <h3>Chat locally</h3>
+          <p>The model runs on your own device. It's measured there first, so you know how fast it really replies.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section class="why" aria-labelledby="why-h">
+      <h2 id="why-h">Why opnlocal</h2>
+      <p class="section-lead">Tools like Ollama and LM Studio are great when you already know which model and settings you want. opnlocal is for everyone else: it removes the technical choices instead of exposing them.</p>
+      <div class="compare">
+        <div class="col">
+          <h3>You decide</h3>
+          <ul>
+            <li>What you want AI for</li>
+            <li>Which of a few picks to try</li>
+            <li>What to ask</li>
+          </ul>
+        </div>
+        <div class="col">
+          <h3>opnlocal handles</h3>
+          <ul>
+            <li>Choosing models that fit your hardware</li>
+            <li>VRAM, memory budgets and context sizes</li>
+            <li>Quantization and file formats</li>
+            <li>Downloading and verifying the file</li>
+            <li>Measuring real speed on your device</li>
+            <li>Running the chat locally, with no account</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="privacy" id="privacy" aria-labelledby="privacy-h">
+      <h2 id="privacy-h">Your conversations stay on your device.</h2>
+      <ul class="plain">
+        <li>Models run locally.</li>
+        <li>Chats and attached documents are stored locally.</li>
+        <li>There are no accounts.</li>
+        <li>There is no analytics or telemetry.</li>
+        <li>The app goes online only to download a model you chose and to check for new models once a day, which you can turn off.</li>
+      </ul>
+      <p><a href="https://github.com/MilanDanilovic/opnlocal/blob/main/docs/PRIVACY.md">Read the complete list of network connections</a></p>
+    </section>
+
+    <section class="oss" aria-labelledby="oss-h">
+      <h2 id="oss-h">Open source, Apache 2.0</h2>
+      <p class="section-lead">The whole app, the engine and the model catalog are public. Read it, build it, or change it.</p>
+      <div class="links">
+        <a class="btn" href="https://github.com/MilanDanilovic/opnlocal">View source on GitHub</a>
+        <a class="btn" href="https://github.com/MilanDanilovic/opnlocal/issues">Report an issue</a>
+        <a class="btn" href="https://github.com/MilanDanilovic/opnlocal/stargazers">Star on GitHub</a>
+      </div>
+    </section>
+
+    <section class="support" aria-labelledby="support-h">
+      <h2 id="support-h">Support opnlocal</h2>
+      <p>opnlocal is free and open source. If it saves you time or makes local AI easier to use, you can support development with a coffee.</p>
+      <a class="btn" href="https://ko-fi.com/opnlocal">Buy me a coffee</a>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <a class="brand" href="#">
+      <svg width="22" height="22" viewBox="0 0 1024 1024" aria-hidden="true">
+        <rect x="64" y="64" width="896" height="896" rx="208" fill="var(--accent)" />
+        <circle cx="512" cy="512" r="236" fill="none" stroke="var(--accent-contrast)" stroke-width="88" />
+        <circle cx="512" cy="512" r="74" fill="var(--accent-contrast)" />
+      </svg>
+      <span>opnlocal</span>
+    </a>
+    <nav aria-label="Footer">
+      <a href="https://github.com/MilanDanilovic/opnlocal">GitHub</a>
+      <a href="https://github.com/MilanDanilovic/opnlocal/releases/latest">Downloads</a>
+      <a href="https://github.com/MilanDanilovic/opnlocal/blob/main/docs/PRIVACY.md">Privacy</a>
+      <a href="https://ko-fi.com/opnlocal">Ko-fi</a>
+    </nav>
+    <p class="fine">Free and open source under Apache 2.0.</p>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>

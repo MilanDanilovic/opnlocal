@@ -11,6 +11,8 @@ up 30×; everything else is real time.*
 
 ## Download
 
+Website: **[milandanilovic.github.io/opnlocal](https://milandanilovic.github.io/opnlocal/)**
+
 Click the link for your device. It downloads the newest version straight away; no account needed.
 
 | Your device | Download | Then |

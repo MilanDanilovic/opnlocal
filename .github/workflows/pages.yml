@@ -1,0 +1,37 @@
+# Publishes site/ (the landing page) to GitHub Pages on every push that touches it.
+# The demo recording lives in docs/images and is copied in, so it isn't stored twice.
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", "docs/images/demo.gif", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble the site
+        run: |
+          mkdir -p out && cp -r site/. out/ && cp docs/images/demo.gif out/demo.gif
+          test -f out/index.html && test -f out/og.png && test -f out/icon.png
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+      - id: deployment
+        uses: actions/deploy-pages@v4
