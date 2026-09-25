@@ -11,15 +11,17 @@ up 30×; everything else is real time.*
 
 ## Download
 
-Get the latest version from **[GitHub Releases](https://github.com/MilanDanilovic/opnlocal/releases/latest)**:
+Click the link for your device. It downloads the newest version straight away; no account needed.
 
-| Platform | Download | Notes |
+| Your device | Download | Then |
 |---|---|---|
-| Windows 10/11 (x64) | `.exe` installer | No admin rights needed. Not code-signed yet: Windows SmartScreen will warn → *More info* → *Run anyway*. |
-| macOS 13+ (Apple Silicon) | `.dmg` | Not signed or notarized yet: right-click the app → *Open* the first time. |
-| Linux x64 | `.deb` or `.AppImage` | `.deb` for Ubuntu 22.04 or newer and similar. The AppImage runs on most distributions without installing: make it executable and open it. |
-| Android 9+ (64-bit) | `.apk` | Install from file (allow "unknown sources"). Needs a phone from about 2019 or newer. |
-| iOS 17+ | `.ipa` (unsigned) | Sideloading only (e.g. Sideloadly with your own Apple ID, see [docs/RELEASING.md](docs/RELEASING.md)). No App Store build yet. |
+| **Windows** PC (Windows 10 or 11) | **[Download for Windows](https://github.com/MilanDanilovic/opnlocal/releases/latest/download/opnlocal-windows-setup.exe)** | Open the downloaded file. Windows may say "Windows protected your PC" because opnlocal is new and not yet registered with Microsoft: click *More info*, then *Run anyway*. No admin password needed. |
+| **Mac** with Apple silicon (M1 or newer, macOS 13+) | **[Download for Mac](https://github.com/MilanDanilovic/opnlocal/releases/latest/download/opnlocal-macos.dmg)** | Open the file and drag opnlocal to Applications. The first time, right-click the app and choose *Open* (it is not yet registered with Apple). |
+| **Linux** (Ubuntu 22.04 or newer and similar) | **[Download for Linux (.deb)](https://github.com/MilanDanilovic/opnlocal/releases/latest/download/opnlocal-linux.deb)** or **[AppImage](https://github.com/MilanDanilovic/opnlocal/releases/latest/download/opnlocal-linux.AppImage)** | Open the `.deb` with your software installer. The AppImage runs on most distributions without installing: make it executable and open it. |
+| **Android** phone (Android 9+, from about 2019) | **[Download for Android](https://github.com/MilanDanilovic/opnlocal/releases/latest/download/opnlocal-android.apk)** | Open the downloaded file and allow installing from this source when asked. Not on Google Play yet. |
+| **iPhone** (iOS 17+) | [Unsigned app file](https://github.com/MilanDanilovic/opnlocal/releases/latest/download/opnlocal-ios-unsigned.ipa) | Needs sideloading with your own Apple ID (for example with Sideloadly), see [docs/RELEASING.md](docs/RELEASING.md). Not in the App Store yet. |
+
+Older versions and checksums: [all releases](https://github.com/MilanDanilovic/opnlocal/releases).
 
 ## How it works
 
@@ -31,8 +33,10 @@ Get the latest version from **[GitHub Releases](https://github.com/MilanDanilovi
    checked against a signed list before it's used.
 5. **Measure.** A short test on your device (up to about a minute): "Replies at about 12 words
    per second. Faster than most people read."
-6. **Chat.** Saved conversations, formatted answers and code, attach PDF/Word/text files, stop,
-   try again, and an optional "Think harder" mode.
+6. **Chat.** Saved conversations, formatted answers and code, stop, try again, and an optional
+   "Think harder" mode. Attach PDF/Word/text files of any length (what doesn't fit the model at
+   once is cut down to the parts relevant to the question) and images: their text is read on
+   the device, and models that can look at pictures do so after an extra download.
 
 ## How it differs from LM Studio, Ollama, Jan and GPT4All
 

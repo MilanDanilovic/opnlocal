@@ -1,13 +1,14 @@
 # Privacy
 
-opnlocal runs AI models on the user's own device. Conversations, attached documents, device
-details and benchmark results stay on the device.
+opnlocal runs AI models on the user's own device. Conversations, attached documents and images
+(text is read from images on the device; a shrunk copy of each image is kept with the
+conversation), device details and benchmark results stay on the device.
 
 ## Network connections (the complete list)
 
 | When | To | What is sent | Can be turned off |
 |---|---|---|---|
-| The user taps *Download* for a model | `huggingface.co` (then a Hugging Face CDN it redirects to) | A standard HTTPS request for one pinned file, with `Range` headers when resuming. User agent `opnlocal/<version>`. | It only happens on request. |
+| The user taps *Download* for a model, or *Add image support* for one | `huggingface.co` (then a Hugging Face CDN it redirects to) | A standard HTTPS request for one pinned file, with `Range` headers when resuming. User agent `opnlocal/<version>`. | It only happens on request. |
 | At most once a day, and *Check now* in Settings | `raw.githubusercontent.com` (the public repo `MilanDanilovic/opnlocal-catalog`) | Two HTTPS GET requests (`catalog.json`, `catalog.json.sig`). No parameters, no identifiers. | Settings → Privacy → "Check for new models automatically". |
 | Opening a license or *Source code* link | The link's site, in the system browser | Whatever the browser sends | Only on tap. |
 

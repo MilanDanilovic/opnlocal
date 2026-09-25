@@ -49,6 +49,20 @@ quantization or an inference engine is.
   the end. Cancel deletes the partial file.
 - **GPU crash guard.** A marker file is written before any GPU load. If the app dies during the load,
   the next launch uses the CPU and says why.
+- **Context grows with the conversation, not the use case.** A normal chat gets 16k tokens on
+  desktop (4k on phones); a long document makes the engine reload the model with the smallest
+  power-of-two context that holds it and still fits the device (`fit::context_for`). The KV
+  cache is 8-bit (q8_0) so that costs about half; where a backend can't do that, the runtime
+  halves the context instead, so the memory estimate holds either way.
+- **Documents longer than the largest context are not refused.** They are cut down to the chunks
+  most relevant to the question with plain word matching (BM25, `engine::retrieval`), and the
+  chat says so. No embedding model: multilingual ones are 300 MB to 600 MB and would have to be
+  loaded next to the chat model on every turn; word matching costs nothing and covers most
+  "what does it say about X" questions. An embedding model can slot in behind the same function.
+- **Images: text read on the device, pictures for models that can see.** OCR models (ocrs, 12 MB)
+  are compiled into the engine, so it works offline everywhere. Models with an image encoder in
+  the catalog (`vision`) can look at the picture itself after that extra download; the
+  encoder is loaded only for conversations that contain images.
 
 ## Known risks
 
