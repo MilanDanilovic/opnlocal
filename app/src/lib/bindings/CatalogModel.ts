@@ -17,7 +17,12 @@ summary: string,
 /**
  * Relative quality per use case within this catalog, 1 (basic) to 5 (best). 0 = not suited.
  */
-scores: Scores, license: License, file: ModelFile, memory: MemoryProfile, chat: ChatProfile, 
+scores: Scores, license: License, file: ModelFile, 
+/**
+ * The model's image encoder ("projector"), an optional extra download that lets it look
+ * at attached images. Absent for text-only models.
+ */
+vision: ModelFile | null, memory: MemoryProfile, chat: ChatProfile, 
 /**
  * Oldest app version that can run this model (e.g. a newer architecture needs a newer llama.cpp).
  */

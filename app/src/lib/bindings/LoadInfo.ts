@@ -8,4 +8,8 @@ gpu_layers: number, total_layers: number, gpu_device: string | null,
 /**
  * Some weights (MoE experts) stay in system memory even though layers run on the GPU.
  */
-split_with_cpu: boolean, };
+split_with_cpu: boolean, 
+/**
+ * The image encoder is loaded: prompts may contain images.
+ */
+vision: boolean, };

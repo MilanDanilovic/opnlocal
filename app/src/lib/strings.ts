@@ -120,6 +120,7 @@ export const t = {
     io: (m: string) => `Couldn't save the file: ${m}`,
     elsewhere: "Another download is in progress.",
     banner: (name: string, pct: number) => `Downloading ${name}: ${pct}%`,
+    visionSuffix: " image support",
   },
 
   bench: {
@@ -155,7 +156,7 @@ export const t = {
     placeholder: "Message",
     send: "Send",
     stop: "Stop",
-    attach: "Attach a document",
+    attach: "Attach a document or image",
     thinkHarder: "Think harder",
     thinkHarderHint: "Slower, but better on hard questions",
     showThinking: "Show thinking",
@@ -177,6 +178,9 @@ export const t = {
     emptyTitle: "What can I help with?",
     local: "Runs on this device. Nothing is sent anywhere.",
     loading: (pct: number) => `Loading the model… ${pct}%`,
+    reading: (pct: number) => `Reading what you sent… ${pct}%`,
+    partialDocuments:
+      "The attached document is longer than this model can read at once, so only the parts most relevant to your question were used.",
     noModelTitle: "No model set up yet",
     noModel: "Set up a model to start chatting.",
     findModel: "Find a model",
@@ -184,6 +188,11 @@ export const t = {
       `This message is about ${x.toFixed(1)} times more than this model can read at once. Try a shorter document or split it into parts.`,
     error: "Something went wrong while replying.",
     attachmentWords: (name: string, words: number) => `${name} · ${words.toLocaleString("en")} words`,
+    attachmentImage: (name: string, words: number) =>
+      words > 0 ? `${name} · ${words.toLocaleString("en")} words read` : name,
+    visionOffer: (model: string, size: string) =>
+      `${model} can look at images itself with an extra ${size} download. Until then, only the text read from the image is used.`,
+    visionAdd: "Add image support",
     removeAttachment: (name: string) => `Remove ${name}`,
     deleteChat: "Delete chat",
     deleteChatConfirm: "Delete this conversation? This can't be undone.",

@@ -3,6 +3,7 @@
 
 import { api, asEngineError, backend, type EngineError, type EngineEvent } from "./api";
 import type { AppState } from "./bindings/AppState";
+import type { Attachment } from "./bindings/Attachment";
 import type { BenchStage } from "./bindings/BenchStage";
 import type { BenchmarkResult } from "./bindings/BenchmarkResult";
 import type { CatalogModel } from "./bindings/CatalogModel";
@@ -28,6 +29,8 @@ export type Screen =
 
 export interface DownloadState {
   modelId: string;
+  /** The model's image encoder rather than the model itself. */
+  vision: boolean;
   progress: Progress | null;
   status: "running" | "done" | "failed" | "cancelled";
   error: DownloadError | EngineError | null;
@@ -39,6 +42,8 @@ export interface Streaming {
   thinking: string;
   answer: string;
   droppedMessages: number;
+  /** Attached documents were cut down to the parts relevant to the question. */
+  partialDocuments: boolean;
 }
 
 class App {
@@ -49,6 +54,8 @@ class App {
   download = $state<DownloadState | null>(null);
   benchStage = $state<BenchStage | null>(null);
   loadingFraction = $state<number | null>(null);
+  /** Progress through a long prompt (a document) before the reply starts. */
+  readingFraction = $state<number | null>(null);
   importFraction = $state<number | null>(null);
   conversation = $state<Conversation | null>(null);
   streaming = $state<Streaming | null>(null);
@@ -129,15 +136,21 @@ class App {
       case "benchmark_stage":
         this.benchStage = e.stage;
         break;
+      case "chat_reading":
+        this.readingFraction = e.fraction >= 1 ? null : e.fraction;
+        break;
       case "chat_started":
         this.loadingFraction = null;
+        this.readingFraction = null;
         if (this.streaming) {
           this.streaming.messageId = e.message_id;
           this.streaming.conversationId = e.conversation_id;
           this.streaming.droppedMessages = e.dropped_messages;
+          this.streaming.partialDocuments = e.partial_documents;
         }
         break;
       case "chat_delta":
+        this.readingFraction = null;
         if (this.streaming && this.streaming.messageId === e.message_id) {
           if (e.thinking) this.streaming.thinking += e.thinking;
           if (e.answer) this.streaming.answer += e.answer;
@@ -172,10 +185,10 @@ class App {
 
   // ---- downloads ----------------------------------------------------------------------
 
-  async startDownload(modelId: string) {
-    this.download = { modelId, progress: null, status: "running", error: null };
+  async startDownload(modelId: string, vision = false) {
+    this.download = { modelId, vision, progress: null, status: "running", error: null };
     try {
-      await api.download(modelId);
+      await (vision ? api.downloadVision(modelId) : api.download(modelId));
       this.download.status = "done";
       await this.refresh();
     } catch (e) {
@@ -228,7 +241,7 @@ class App {
     return this.streaming !== null;
   }
 
-  async send(text: string, attachments: { name: string; text: string }[], thinkHarder: boolean) {
+  async send(text: string, attachments: Attachment[], thinkHarder: boolean) {
     this.chatError = null;
     const conversationId = this.conversation?.id ?? null;
     // Show the user's message right away.
@@ -243,7 +256,7 @@ class App {
       stopped: false,
     };
     if (this.conversation) this.conversation.messages.push(optimistic);
-    this.streaming = { conversationId, messageId: null, thinking: "", answer: "", droppedMessages: 0 };
+    this.streaming = { conversationId, messageId: null, thinking: "", answer: "", droppedMessages: 0, partialDocuments: false };
     try {
       const c = await api.sendMessage(conversationId, text, attachments, thinkHarder);
       this.conversation = c;
@@ -256,6 +269,7 @@ class App {
     } finally {
       this.streaming = null;
       this.loadingFraction = null;
+      this.readingFraction = null;
       await this.refresh();
     }
   }
@@ -265,7 +279,7 @@ class App {
     if (!c) return;
     this.chatError = null;
     while (c.messages.length && c.messages[c.messages.length - 1]!.role === "assistant") c.messages.pop();
-    this.streaming = { conversationId: c.id, messageId: null, thinking: "", answer: "", droppedMessages: 0 };
+    this.streaming = { conversationId: c.id, messageId: null, thinking: "", answer: "", droppedMessages: 0, partialDocuments: false };
     try {
       this.conversation = await api.regenerate(c.id, thinkHarder);
     } catch (e) {
@@ -274,6 +288,7 @@ class App {
     } finally {
       this.streaming = null;
       this.loadingFraction = null;
+      this.readingFraction = null;
     }
   }
 

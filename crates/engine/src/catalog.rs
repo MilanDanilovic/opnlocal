@@ -59,6 +59,10 @@ pub struct CatalogModel {
     pub scores: Scores,
     pub license: License,
     pub file: ModelFile,
+    /// The model's image encoder ("projector"), an optional extra download that lets it look
+    /// at attached images. Absent for text-only models.
+    #[serde(default)]
+    pub vision: Option<ModelFile>,
     pub memory: MemoryProfile,
     pub chat: ChatProfile,
     /// Oldest app version that can run this model (e.g. a newer architecture needs a newer llama.cpp).
@@ -328,6 +332,7 @@ pub(crate) mod tests {
                 size: (weights_gb * 1e9) as u64,
                 sha256: "0".repeat(64),
             },
+            vision: None,
             memory: MemoryProfile {
                 weights_bytes: (weights_gb * 1e9) as u64,
                 kv_bytes_per_token: 32 * 1024,

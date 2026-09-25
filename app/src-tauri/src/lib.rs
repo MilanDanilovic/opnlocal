@@ -65,6 +65,12 @@ async fn download_model(app: tauri::AppHandle, engine: Eng<'_>, model_id: String
 }
 
 #[tauri::command]
+async fn download_vision(app: tauri::AppHandle, engine: Eng<'_>, model_id: String) -> Res<()> {
+    let _awake = keep_awake::Awake::new(&app);
+    engine.download_vision(&model_id).await
+}
+
+#[tauri::command]
 async fn cancel_download(engine: Eng<'_>) -> Res<()> {
     engine.cancel_download();
     Ok(())
@@ -201,6 +207,11 @@ async fn attach_file(app: tauri::AppHandle, engine: Eng<'_>, path: String) -> Re
 }
 
 #[tauri::command]
+async fn check_attachments(engine: Eng<'_>, model_id: String, attachments: Vec<Attachment>) -> Res<()> {
+    engine.check_attachments(&model_id, &attachments)
+}
+
+#[tauri::command]
 async fn import_model(app: tauri::AppHandle, engine: Eng<'_>, path: String) -> Res<ImportedModel> {
     let e = engine.inner().clone();
     blocking(move || {
@@ -256,6 +267,7 @@ pub fn run() {
             accept_license,
             refresh_catalog,
             download_model,
+            download_vision,
             cancel_download,
             delete_model,
             run_benchmark,
@@ -269,6 +281,7 @@ pub fn run() {
             set_conversation_model,
             unload_model,
             attach_file,
+            check_attachments,
             import_model,
         ])
         .run(tauri::generate_context!())
@@ -299,7 +312,7 @@ fn self_test(engine: Arc<Engine>, model: String) {
         }
         let gpu = if device.gpus.is_empty() { GpuChoice::None } else { GpuChoice::All };
         let rt = Runtime::start(None);
-        let options = LoadOptions { path, context: 512, ubatch: 128, gpu, threads: None, crash_marker: None };
+        let options = LoadOptions { path, context: 512, ubatch: 128, gpu, threads: None, crash_marker: None, vision: None };
         match rt.load(options, |_| {}) {
             Ok((info, _)) => log(format!("OPNLOCAL_SELFTEST loaded gpu_layers={} load_ms={}", info.gpu_layers, info.load_ms)),
             Err(e) => return log(format!("OPNLOCAL_SELFTEST FAILED load: {e}")),
@@ -311,6 +324,8 @@ fn self_test(engine: Arc<Engine>, model: String) {
             max_tokens: 32,
             sampling: SamplingParams { temperature: 0.0, top_p: 1.0, top_k: 1, min_p: 0.0, seed: 1 },
             stop: Default::default(),
+            on_progress: None,
+            images: vec![],
         };
         match rt.generate(req, move |p| t2.lock().unwrap().push_str(p)) {
             Ok(s) => log(format!(

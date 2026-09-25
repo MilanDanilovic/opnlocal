@@ -7,4 +7,9 @@ export type Event = { "type": "download_progress", model_id: string, progress: P
 /**
  * Oldest messages left out so the conversation fits the model.
  */
-dropped_messages: number, } | { "type": "chat_delta", conversation_id: string, message_id: string, thinking: string | null, answer: string | null, } | { "type": "benchmark_stage", model_id: string, stage: BenchStage, };
+dropped_messages: number, 
+/**
+ * Attached documents were longer than the model can read at once, so only the parts
+ * most relevant to the question were used.
+ */
+partial_documents: boolean, } | { "type": "chat_reading", conversation_id: string, fraction: number, } | { "type": "chat_delta", conversation_id: string, message_id: string, thinking: string | null, answer: string | null, } | { "type": "benchmark_stage", model_id: string, stage: BenchStage, };

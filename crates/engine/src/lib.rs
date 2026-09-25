@@ -5,7 +5,8 @@
 //! - [`fit`] and [`recommend`]: which of them fit, and which to suggest
 //! - [`download`]: resumable, verified downloads
 //! - [`llm`]: llama.cpp runtime (in-process, one worker thread)
-//! - [`chat`], [`bench`], [`docs`]: prompts and replies, measuring, attached documents
+//! - [`chat`], [`bench`], [`docs`], [`ocr`], [`retrieval`]: prompts and replies, measuring, attached
+//!   documents and images, the relevant parts of documents too long to read whole
 //! - [`store`]: files on disk
 //! - [`engine`]: the facade the app talks to
 
@@ -19,7 +20,9 @@ pub mod fit;
 pub mod gguf;
 pub mod hardware;
 pub mod llm;
+pub mod ocr;
 pub mod recommend;
+pub mod retrieval;
 pub mod store;
 
 pub use engine::{Engine, EngineError, Event};

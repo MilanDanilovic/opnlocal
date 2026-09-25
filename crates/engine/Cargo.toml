@@ -7,7 +7,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-llama-cpp-2 = { version = "=0.1.157", default-features = false, features = ["common"] }
+llama-cpp-2 = { version = "=0.1.157", default-features = false, features = ["common", "mtmd"] }
 # Only for a few raw constants (log levels); features come from llama-cpp-2 below.
 llama-cpp-sys-2 = { version = "=0.1.157", default-features = false }
 serde = { version = "1", features = ["derive"] }
@@ -30,6 +30,10 @@ fs4 = "1.1"
 zip = { version = "8", default-features = false, features = ["deflate"] }
 quick-xml = "0.42"
 pdf-extract = "0.12"
+# Text in images: pure-Rust OCR, models built into the binary (see ocr/).
+ocrs = "0.13"
+rten = "0.26"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "bmp", "gif", "tiff"] }
 ts-rs = { version = "12", features = ["serde-compat"] }
 uuid = { version = "1", features = ["v4"] }
 
@@ -37,13 +41,13 @@ uuid = { version = "1", features = ["v4"] }
 # Windows/Linux load backends at runtime: the best CPU variant for this machine,
 # plus Vulkan only if a working driver exists.
 [target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
-llama-cpp-2 = { version = "=0.1.157", default-features = false, features = ["common", "vulkan", "dynamic-backends"] }
+llama-cpp-2 = { version = "=0.1.157", default-features = false, features = ["common", "mtmd", "vulkan", "dynamic-backends"] }
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
-llama-cpp-2 = { version = "=0.1.157", default-features = false, features = ["common", "metal"] }
+llama-cpp-2 = { version = "=0.1.157", default-features = false, features = ["common", "mtmd", "metal"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
-llama-cpp-2 = { version = "=0.1.157", default-features = false, features = ["common", "android-static-stdcxx"] }
+llama-cpp-2 = { version = "=0.1.157", default-features = false, features = ["common", "mtmd", "android-static-stdcxx"] }
 libc = "0.2"
 
 [dev-dependencies]

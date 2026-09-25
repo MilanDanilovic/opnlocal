@@ -9,10 +9,12 @@ use crate::catalog::{Catalog, CatalogModel, ChatProfile, License, ReasoningForma
 use crate::chat::{self, ChatError, ChatMsg, Piece, ReplyParser, TemplateOptions};
 use crate::docs;
 use crate::download::{self, DownloadError, DownloadRequest, Progress};
+use crate::ocr;
 use crate::fit::{self, MemoryPools, Placement};
 use crate::hardware::{self, DeviceInfo, GpuKind, Platform};
 use crate::llm::{GenerateRequest, GpuChoice, LlmError, LoadInfo, LoadOptions, ModelText, Runtime, SamplingParams, StopReason};
 use crate::recommend::{self, Recommendations};
+use crate::retrieval;
 use crate::store::{
     self, Attachment, Conversation, ConversationSummary, GpuCrash, ImportedModel, Message, ModelSettings,
     ReplyStats, Role, Settings, Store,
@@ -22,7 +24,7 @@ use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 use ts_rs::TS;
@@ -57,6 +59,14 @@ pub enum Event {
         message_id: String,
         /// Oldest messages left out so the conversation fits the model.
         dropped_messages: u32,
+        /// Attached documents were longer than the model can read at once, so only the parts
+        /// most relevant to the question were used.
+        partial_documents: bool,
+    },
+    /// Progress through a long prompt (a document) before the first word of the reply.
+    ChatReading {
+        conversation_id: String,
+        fraction: f32,
     },
     ChatDelta {
         conversation_id: String,
@@ -88,6 +98,8 @@ pub type EventSink = Arc<dyn Fn(Event) + Send + Sync>;
 pub enum EngineError {
     #[error("unknown model {id}")]
     UnknownModel { id: String },
+    #[error("model {id} can't look at images")]
+    NoVision { id: String },
     #[error("model {id} is not installed")]
     NotInstalled { id: String },
     #[error("the license for this model must be accepted first")]
@@ -142,6 +154,8 @@ pub struct ModelSpec {
     pub memory: crate::catalog::MemoryProfile,
     pub chat: ChatProfile,
     pub license: Option<License>,
+    /// The installed image encoder (path, size), if the model has one and it was downloaded.
+    pub vision: Option<(PathBuf, u64)>,
 }
 
 #[derive(Serialize, Deserialize, TS, Clone, Debug, PartialEq)]
@@ -164,6 +178,8 @@ pub struct AppState {
     pub models: Vec<CatalogModel>,
     pub imported: Vec<ImportedModel>,
     pub installed: Vec<String>,
+    /// Installed models whose image encoder is installed too.
+    pub vision_installed: Vec<String>,
     pub partial_downloads: Vec<PartialDownload>,
     pub active_download: Option<String>,
     pub benchmarks: BTreeMap<String, BenchmarkResult>,
@@ -195,6 +211,8 @@ struct Active {
     model_id: String,
     context: u32,
     gpu: GpuChoice,
+    /// The image encoder is loaded too.
+    vision: bool,
     info: LoadInfo,
     text: ModelText,
 }
@@ -211,6 +229,8 @@ pub struct Engine {
     stop: Mutex<Option<Arc<AtomicBool>>>,
     /// One chat/benchmark/load at a time.
     busy: Mutex<()>,
+    /// Text recognition for attached images, loaded on first use.
+    ocr: OnceLock<ocr::Ocr>,
 }
 
 impl Engine {
@@ -245,6 +265,7 @@ impl Engine {
             download: Mutex::new(None),
             stop: Mutex::new(None),
             busy: Mutex::new(()),
+            ocr: OnceLock::new(),
         };
         engine.check_gpu_crash();
         Ok(engine)
@@ -286,12 +307,13 @@ impl Engine {
         let catalog = self.catalog.read().unwrap();
         let models: Vec<CatalogModel> = catalog.runnable(&self.app_version).into_iter().cloned().collect();
         let imported = self.store.imported();
-        let installed = models
+        let installed: Vec<String> = models
             .iter()
             .map(|m| m.id.clone())
             .chain(imported.iter().map(|m| m.id.clone()))
             .filter(|id| self.store.is_installed(id))
             .collect();
+        let vision_installed = installed.iter().filter(|id| self.store.has_vision(id)).cloned().collect();
         let partial_downloads = models
             .iter()
             .filter_map(|m| {
@@ -310,6 +332,7 @@ impl Engine {
             models,
             imported,
             installed,
+            vision_installed,
             partial_downloads,
             active_download: self.download.lock().unwrap().as_ref().map(|(id, _)| id.clone()),
             benchmarks: self.store.benchmarks(),
@@ -410,6 +433,11 @@ impl Engine {
                 memory: m.memory,
                 chat: m.chat.clone(),
                 license: Some(m.license.clone()),
+                vision: m
+                    .vision
+                    .as_ref()
+                    .filter(|_| self.store.has_vision(&m.id))
+                    .map(|v| (self.store.vision_path(&m.id), v.size)),
             });
         }
         let imported = self
@@ -430,6 +458,7 @@ impl Engine {
             memory: imported.memory,
             chat: guess_chat_profile(&template),
             license: None,
+            vision: None,
         })
     }
 
@@ -437,6 +466,15 @@ impl Engine {
 
     /// Downloads a catalog model. One download at a time; resumes a partial file if present.
     pub async fn download(&self, model_id: &str) -> Result<(), EngineError> {
+        self.download_part(model_id, false).await
+    }
+
+    /// Downloads a model's image encoder, so it can look at attached images.
+    pub async fn download_vision(&self, model_id: &str) -> Result<(), EngineError> {
+        self.download_part(model_id, true).await
+    }
+
+    async fn download_part(&self, model_id: &str, vision: bool) -> Result<(), EngineError> {
         let model = self
             .catalog_model(model_id)
             .ok_or_else(|| EngineError::UnknownModel { id: model_id.into() })?;
@@ -447,6 +485,12 @@ impl Engine {
                 license_id: model.license.id.clone(),
             });
         }
+        let (file, dest) = if vision {
+            let file = model.vision.as_ref().ok_or_else(|| EngineError::NoVision { id: model_id.into() })?;
+            (file, self.store.vision_path(model_id))
+        } else {
+            (&model.file, self.store.model_path(model_id))
+        };
         let token = CancellationToken::new();
         {
             let mut d = self.download.lock().unwrap();
@@ -456,10 +500,10 @@ impl Engine {
             *d = Some((model_id.to_string(), token.clone()));
         }
         let req = DownloadRequest {
-            url: model.file.url(),
-            dest: self.store.model_path(model_id),
-            size: model.file.size,
-            sha256: model.file.sha256.clone(),
+            url: file.url(),
+            dest,
+            size: file.size,
+            sha256: file.sha256.clone(),
         };
         let events = self.events.clone();
         let id = model_id.to_string();
@@ -598,17 +642,25 @@ impl Engine {
         GpuChoice::None
     }
 
-    fn ensure_loaded(&self, spec: &ModelSpec, use_case: UseCase, gpu_override: Option<GpuChoice>) -> Result<Active, EngineError> {
+    /// Loads the model unless it is already loaded with a context of at least `needed` tokens
+    /// (prompt plus reply room) on the same device.
+    fn ensure_loaded(
+        &self,
+        spec: &ModelSpec,
+        use_case: UseCase,
+        gpu_override: Option<GpuChoice>,
+        needed: u32,
+        vision: bool,
+    ) -> Result<Active, EngineError> {
         if !spec.path.is_file() {
             return Err(EngineError::NotInstalled { id: spec.id.clone() });
         }
         let settings = self.store.settings();
         let ms = settings.per_model.get(&spec.id).cloned().unwrap_or_default();
         let device = self.detect();
-        let pools = MemoryPools::for_device(&device, settings.gpu_allowed());
         let ubatch = fit::ubatch_for(device.platform);
-        let fit = fit::best_fit(&spec.memory, &pools, fit::desired_context(use_case, device.platform), ubatch);
-        let context = ms.context.unwrap_or(fit.context).clamp(fit::MIN_CONTEXT, spec.memory.max_context.max(fit::MIN_CONTEXT));
+        let vision = vision && spec.vision.is_some();
+        let (context, fit) = planned_context(spec, use_case, &settings, &device, needed, vision);
         let gpu = gpu_override.unwrap_or_else(|| self.choose_gpu(&device, &settings, &ms, fit.placement));
         let threads = ms.threads.or(Some(if device.platform.is_mobile() {
             device.cpu.cores.clamp(1, 4)
@@ -621,6 +673,7 @@ impl Engine {
             && a.model_id == spec.id
             && a.context >= context
             && a.gpu == gpu
+            && (a.vision || !vision)
         {
             return Ok(a.clone());
         }
@@ -635,6 +688,7 @@ impl Engine {
                 gpu,
                 threads,
                 crash_marker: Some(self.store.gpu_marker()),
+                vision: spec.vision.as_ref().filter(|_| vision).map(|(p, _)| p.clone()),
             },
             move |fraction| {
                 events(Event::ModelLoading {
@@ -647,6 +701,7 @@ impl Engine {
             model_id: spec.id.clone(),
             context: info.context,
             gpu,
+            vision: info.vision,
             info,
             text,
         };
@@ -679,7 +734,7 @@ impl Engine {
             stage(BenchStage::Loading);
             self.unload();
             let gpu_free_before = gpu_free_total();
-            let active = self.ensure_loaded(&spec, use_case, gpu)?;
+            let active = self.ensure_loaded(&spec, use_case, gpu, 0, false)?;
             stage(BenchStage::Reading);
             let m = bench::measure(&self.runtime, &active.text, &spec.chat, FALLBACK_TEMPLATE)?;
             stage(BenchStage::Writing);
@@ -770,8 +825,39 @@ impl Engine {
         if bytes.len() as u64 > docs::MAX_FILE_BYTES {
             return Err(EngineError::Document { message: docs::DocError::TooLarge.to_string() });
         }
-        let text = docs::extract_bytes(&ext, bytes).map_err(|e| EngineError::Document { message: e.to_string() })?;
-        Ok(Attachment { name: name.to_string(), text })
+        let document = |e: docs::DocError| EngineError::Document { message: e.to_string() };
+        if !ocr::IMAGE_EXTENSIONS.contains(&ext.as_str()) {
+            let text = docs::extract_bytes(&ext, bytes).map_err(document)?;
+            return Ok(Attachment { name: name.to_string(), text, image: None });
+        }
+        // Images: read their text now (for models that can't see) and keep a shrunk copy (for
+        // models that can). Whether either is enough is judged against the model when attached.
+        let text = self.ocr()?.read(bytes).map_err(document)?;
+        let image = self.store.save_image(&ocr::shrink_image(bytes, IMAGE_MAX_SIDE).map_err(document)?)?;
+        Ok(Attachment { name: name.to_string(), text, image: Some(image) })
+    }
+
+    fn ocr(&self) -> Result<&ocr::Ocr, EngineError> {
+        if let Some(o) = self.ocr.get() {
+            return Ok(o);
+        }
+        let loaded = ocr::Ocr::load().map_err(|message| EngineError::Document { message })?;
+        Ok(self.ocr.get_or_init(|| loaded))
+    }
+
+    /// Whether these attachments are of use to this model, judged when they are attached so the
+    /// app can say no right away. Length is no obstacle: documents longer than the model can
+    /// read at once are cut down to the parts relevant to each question (see `retrieval`).
+    pub fn check_attachments(&self, model_id: &str, attachments: &[Attachment]) -> Result<(), EngineError> {
+        let spec = self.spec(model_id)?;
+        if spec.vision.is_none()
+            && let Some(a) = attachments.iter().find(|a| a.image.is_some() && a.text.trim().is_empty())
+        {
+            return Err(EngineError::Document {
+                message: format!("no text was found in {}, and this model can't look at images", a.name),
+            });
+        }
+        Ok(())
     }
 
     /// Adds a user message (to a new conversation if `conversation_id` is None) and streams the
@@ -845,47 +931,113 @@ impl Engine {
     fn reply(&self, mut conv: Conversation) -> Result<Conversation, EngineError> {
         let _busy = self.busy.lock().unwrap();
         let spec = self.spec(&conv.model_id)?;
-        let active = self.ensure_loaded(&spec, conv.use_case, None)?;
         let settings = self.store.settings();
         let ms = settings.per_model.get(&spec.id).cloned().unwrap_or_default();
-        let template = active.text.chat_template.clone().unwrap_or_else(|| FALLBACK_TEMPLATE.into());
         let system = ms.system_prompt.clone().unwrap_or_else(|| default_system_prompt(conv.use_case).into());
 
-        let history: Vec<ChatMsg> = conv
-            .messages
-            .iter()
-            .map(|m| match m.role {
-                Role::User => {
-                    let docs: Vec<(String, String)> =
-                        m.attachments.iter().map(|a| (a.name.clone(), a.text.clone())).collect();
-                    ChatMsg::new("user", chat::user_content(&m.content, &docs))
+        // Images go to the model as pictures when its image encoder is installed, otherwise as
+        // the text read from them.
+        let see_images = spec.vision.is_some()
+            && conv.messages.iter().flat_map(|m| &m.attachments).any(|a| a.image.is_some());
+        let mut images: Vec<Vec<u8>> = Vec::new();
+        let build_history = |trim: Option<u32>| -> Result<Vec<ChatMsg>, EngineError> {
+            let mut history = Vec::with_capacity(conv.messages.len());
+            let question = conv.messages.iter().rev().find(|m| m.role == Role::User).map(|m| m.content.as_str()).unwrap_or("");
+            for m in &conv.messages {
+                match m.role {
+                    Role::User => {
+                        let mut attachments = m.attachments.clone();
+                        if let Some(budget) = trim {
+                            for a in attachments.iter_mut().filter(|a| a.image.is_none() || !see_images) {
+                                a.text = retrieval::select(question, &a.text, budget);
+                            }
+                        }
+                        history.push(ChatMsg::new("user", chat::user_content(&m.content, &attachments, see_images)));
+                    }
+                    Role::Assistant => history.push(ChatMsg::new("assistant", m.content.clone())),
                 }
-                Role::Assistant => ChatMsg::new("assistant", m.content.clone()),
-            })
-            .collect();
-
-        let reserve = if conv.think_harder { 4096 } else { 1024 }.min(active.context / 2);
-        let opts = TemplateOptions {
-            thinking: &spec.chat.thinking,
-            think_harder: conv.think_harder,
-            bos_token: &active.text.bos,
-            eos_token: &active.text.eos,
-            vars: &spec.chat.template_vars,
+            }
+            Ok(history)
         };
-        let plan = chat::plan_prompt(
-            |msgs| chat::render(&template, msgs, &opts),
-            |t| self.runtime.count_tokens(t).unwrap_or(u32::MAX),
-            Some(&system),
-            &history,
-            active.context,
-            reserve,
-        )
-        .map_err(|e| match e {
-            ChatError::TooLong { prompt_tokens, room_tokens } => EngineError::MessageTooLong {
-                times_too_long: prompt_tokens as f32 / room_tokens.max(1) as f32,
-            },
-            ChatError::Template(message) => EngineError::Template { message },
-        })?;
+        if see_images {
+            for file in conv.messages.iter().flat_map(|m| &m.attachments).filter_map(|a| a.image.as_deref()) {
+                let path = self.store.image_path(file).ok_or(EngineError::UnknownConversation)?;
+                images.push(std::fs::read(path)?);
+            }
+        }
+        let mut history = build_history(None)?;
+
+        // The context is sized for the whole conversation from a rough token count. Should the
+        // exact count (known once the model is loaded) not fit, reload once with room for it.
+        let rough = |history: &[ChatMsg]| -> u32 {
+            history.iter().map(|m| chat::estimate_tokens(&m.content)).sum::<u32>()
+                + chat::estimate_tokens(&system)
+                + images.len() as u32 * IMAGE_TOKENS
+                + reply_room(conv.think_harder)
+        };
+        let mut needed = rough(&history);
+        // Documents longer than the largest context this device can give the model are cut
+        // down to the parts that matter for the question (see `retrieval`).
+        let (largest, _) = planned_context(&spec, conv.use_case, &settings, &self.detect(), needed, see_images);
+        let docs: usize = conv.messages.iter().map(|m| m.attachments.len()).sum();
+        let mut partial_documents = needed > largest && docs > 0;
+        // Tokens per attached document; None = whole documents.
+        let mut budget: Option<u32> = None;
+        if partial_documents {
+            let without_docs = rough(&build_history(Some(0))?);
+            budget = Some(largest.saturating_sub(without_docs) / docs as u32);
+            history = build_history(budget)?;
+            needed = rough(&history);
+        }
+        let mut active = self.ensure_loaded(&spec, conv.use_case, None, needed, see_images)?;
+        let mut reloaded = false;
+        let mut trims = 0;
+        let (plan, reserve) = loop {
+            let template = active.text.chat_template.clone().unwrap_or_else(|| FALLBACK_TEMPLATE.into());
+            let reserve = reply_reserve(conv.think_harder, active.context);
+            let opts = TemplateOptions {
+                thinking: &spec.chat.thinking,
+                think_harder: conv.think_harder,
+                bos_token: &active.text.bos,
+                eos_token: &active.text.eos,
+                vars: &spec.chat.template_vars,
+            };
+            match chat::plan_prompt(
+                |msgs| chat::render(&template, msgs, &opts),
+                // Each image marker in the text becomes a block of image tokens.
+                |t| self.runtime.count_tokens(t).unwrap_or(u32::MAX).saturating_add(images.len() as u32 * IMAGE_TOKENS),
+                Some(&system),
+                &history,
+                active.context,
+                reserve,
+            ) {
+                Ok(plan) => break (plan, reserve),
+                Err(ChatError::TooLong { prompt_tokens, room_tokens }) => {
+                    let exact = prompt_tokens.saturating_add(reply_room(conv.think_harder));
+                    let (bigger, _) = planned_context(&spec, conv.use_case, &settings, &self.detect(), exact, see_images);
+                    if !reloaded && bigger > active.context {
+                        reloaded = true;
+                        active = self.ensure_loaded(&spec, conv.use_case, None, exact, see_images)?;
+                        continue;
+                    }
+                    // The rough count under-counted (some tokenizers, some languages): cut the
+                    // documents down by the ratio the exact count showed, a few times at most.
+                    if docs > 0 && trims < 3 {
+                        trims += 1;
+                        let ratio = prompt_tokens as f32 / room_tokens.max(1) as f32;
+                        let current = budget.unwrap_or(active.context);
+                        budget = Some((current as f32 / ratio * 0.85) as u32);
+                        history = build_history(budget)?;
+                        partial_documents = true;
+                        continue;
+                    }
+                    return Err(EngineError::MessageTooLong {
+                        times_too_long: prompt_tokens as f32 / room_tokens.max(1) as f32,
+                    });
+                }
+                Err(ChatError::Template(message)) => return Err(EngineError::Template { message }),
+            }
+        };
 
         let base = if conv.think_harder {
             spec.chat.thinking_sampling.unwrap_or(spec.chat.sampling)
@@ -907,6 +1059,7 @@ impl Engine {
             conversation_id: conv.id.clone(),
             message_id: message_id.clone(),
             dropped_messages: plan.dropped_messages as u32,
+            partial_documents,
         });
         let parser = Arc::new(Mutex::new(ReplyParser::new(spec.chat.reasoning, &plan.prompt)));
         let collected = Arc::new(Mutex::new((String::new(), String::new())));
@@ -937,10 +1090,21 @@ impl Engine {
             }
         };
         let raw = Arc::new(Mutex::new(String::new()));
+        let on_progress: Arc<dyn Fn(f32) + Send + Sync> = {
+            let (events, cid) = (self.events.clone(), conv.id.clone());
+            Arc::new(move |fraction| events(Event::ChatReading { conversation_id: cid.clone(), fraction }))
+        };
         let run = |prompt: String, max_tokens: u32| {
             let (p2, e2, r2) = (parser.clone(), emit_pieces.clone(), raw.clone());
             self.runtime.generate(
-                GenerateRequest { prompt, max_tokens, sampling, stop: stop.clone() },
+                GenerateRequest {
+                    prompt,
+                    max_tokens,
+                    sampling,
+                    stop: stop.clone(),
+                    on_progress: Some(on_progress.clone()),
+                    images: images.clone(),
+                },
                 move |text| {
                     r2.lock().unwrap().push_str(text);
                     let pieces = p2.lock().unwrap().push(text);
@@ -1019,6 +1183,48 @@ fn default_system_prompt(use_case: UseCase) -> &'static str {
     }
 }
 
+/// Context size the model gets when loaded: the best fit for this device and use case, grown
+/// when the conversation needs `needed` tokens (see [`fit::context_for`]), unless the user set
+/// one; kept within the model's own limit.
+fn planned_context(
+    spec: &ModelSpec,
+    use_case: UseCase,
+    settings: &Settings,
+    device: &DeviceInfo,
+    needed: u32,
+    vision: bool,
+) -> (u32, fit::Fit) {
+    let ms = settings.per_model.get(&spec.id).cloned().unwrap_or_default();
+    let pools = MemoryPools::for_device(device, settings.gpu_allowed());
+    let desired = fit::desired_context(use_case, device.platform);
+    let mut memory = spec.memory;
+    if vision && let Some((_, bytes)) = spec.vision {
+        // The encoder's weights plus its working buffers for one image.
+        memory.fixed_bytes += bytes + VISION_SCRATCH_BYTES;
+    }
+    let fit = fit::context_for(&memory, &pools, desired, needed, fit::ubatch_for(device.platform));
+    let context = ms.context.unwrap_or(fit.context).clamp(fit::MIN_CONTEXT, spec.memory.max_context.max(fit::MIN_CONTEXT));
+    (context, fit)
+}
+
+/// Working memory of the image encoder for one (already shrunk) image.
+const VISION_SCRATCH_BYTES: u64 = 512 * 1024 * 1024;
+/// Context tokens one attached image takes, roughly (images are shrunk to at most
+/// [`IMAGE_MAX_SIDE`] pixels; the exact number depends on the model).
+const IMAGE_TOKENS: u32 = 1024;
+/// Attached images are shrunk to this on their longer side before being saved.
+const IMAGE_MAX_SIDE: u32 = 1024;
+
+/// Context tokens kept free for the reply, so the prompt may use the rest.
+fn reply_reserve(think_harder: bool, context: u32) -> u32 {
+    reply_room(think_harder).min(context / 2)
+}
+
+/// Reply room asked for before the context size is known.
+fn reply_room(think_harder: bool) -> u32 {
+    if think_harder { 4096 } else { 1024 }
+}
+
 /// A short title from the first message (or the first attachment's name).
 fn title_from(text: &str, attachments: &[Attachment]) -> String {
     let first_line = text.lines().find(|l| !l.trim().is_empty()).unwrap_or("").trim();
@@ -1092,7 +1298,7 @@ mod tests {
         let long = "Please help me rewrite this cover letter so it sounds more confident but still polite";
         let t = title_from(long, &[]);
         assert!(t.ends_with('…') && t.chars().count() <= 61, "{t}");
-        let a = Attachment { name: "report.pdf".into(), text: "x".into() };
+        let a = Attachment { name: "report.pdf".into(), text: "x".into(), image: None };
         assert_eq!(title_from("", &[a]), "report.pdf");
     }
 
@@ -1152,6 +1358,20 @@ mod tests {
             Err(EngineError::MessageTooLong { times_too_long }) => assert!(times_too_long > 1.0),
             other => panic!("expected MessageTooLong, got {other:?}"),
         }
+        // A document too long to read whole is cut down to the parts relevant to the question.
+        let doc = |text: &str| Attachment { name: "notes.txt".into(), text: text.into(), image: None };
+        assert_eq!(engine.check_attachments(&model.id, &[doc(&huge)]), Ok(()));
+        let long_doc = format!("{huge} The deadline is 14 October. {huge}");
+        let conv = engine.send_message(None, "When is the deadline?", vec![doc(&long_doc)], false).unwrap();
+        assert_eq!(conv.messages.len(), 2);
+        let started = seen.lock().unwrap().iter().rev().find_map(|e| match e {
+            Event::ChatStarted { conversation_id, partial_documents, .. } if *conversation_id == conv.id => Some(*partial_documents),
+            _ => None,
+        });
+        assert_eq!(started, Some(true), "the document was cut down to what fits");
+        // An image with no readable text is useless to a model that can't see.
+        let blank = Attachment { name: "photo.jpg".into(), text: "  ".into(), image: Some("x.jpg".into()) };
+        assert!(matches!(engine.check_attachments(&model.id, &[blank]), Err(EngineError::Document { .. })));
 
         engine.delete_model(&model.id).unwrap();
         assert!(!engine.state().installed.contains(&model.id));

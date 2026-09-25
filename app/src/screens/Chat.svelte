@@ -15,6 +15,7 @@
   let composer = $state<Composer>();
   let pinnedToBottom = true;
   let dropped = $state(0);
+  let partialDocs = $state(false);
 
   const conv = $derived(app.conversation);
   const modelId = $derived(conv?.model_id ?? app.settings?.active_model ?? null);
@@ -29,6 +30,7 @@
 
   $effect(() => {
     if (stream && stream.droppedMessages) dropped = stream.droppedMessages;
+    if (stream?.partialDocuments) partialDocs = true;
   });
 
   // Keep the newest text in view while it streams, unless the user scrolled up to read.
@@ -62,6 +64,7 @@
   async function open(id: string) {
     drawerOpen = false;
     dropped = 0;
+    partialDocs = false;
     await app.openConversation(id);
     app.go({ name: "chat", conversationId: id });
   }
@@ -69,11 +72,13 @@
   function newChat() {
     drawerOpen = false;
     dropped = 0;
+    partialDocs = false;
     app.newChat();
   }
 
   async function send(prompt: string) {
     dropped = 0;
+    partialDocs = false;
     await app.send(prompt, [], false);
   }
 
@@ -165,6 +170,9 @@
         {#if dropped > 0}
           <p class="notice small" role="status"><Icon name="info" size={16} /> {t.chat.dropped(dropped)}</p>
         {/if}
+        {#if partialDocs}
+          <p class="notice small" role="status"><Icon name="info" size={16} /> {t.chat.partialDocuments}</p>
+        {/if}
         {#each conv?.messages ?? [] as m, i (m.id + i)}
           <MessageView
             message={m}
@@ -180,6 +188,8 @@
         {/if}
         {#if app.loadingFraction !== null && app.generating}
           <p class="notice small" role="status">{t.chat.loading(Math.round(app.loadingFraction * 100))}</p>
+        {:else if app.readingFraction !== null && app.generating}
+          <p class="notice small" role="status">{t.chat.reading(Math.round(app.readingFraction * 100))}</p>
         {/if}
         {#if app.chatError}
           <div class="banner bad error" role="alert">
@@ -193,7 +203,7 @@
           </div>
         {/if}
       </div>
-      <Composer bind:this={composer} {canThink} />
+      <Composer bind:this={composer} {canThink} modelId={modelId!} />
     {/if}
   </main>
 </div>

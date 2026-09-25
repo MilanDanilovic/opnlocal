@@ -154,6 +154,8 @@ pub fn measure(
                 seed: 42,
             },
             stop,
+            on_progress: None,
+            images: vec![],
         },
         move |piece| {
             let now = std::time::Instant::now();

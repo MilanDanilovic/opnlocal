@@ -63,9 +63,13 @@ test("first run: find, download, measure, chat", async ({ page }) => {
   await accessible(page);
   await shot(page, "09-chat-empty");
 
+  // A document is read and checked against the model's limit when attached, then sent along.
+  await page.getByRole("button", { name: "Attach a document" }).click();
+  await expect(page.getByText("notes.txt · 12 words")).toBeVisible();
   await page.getByLabel("Message").fill("How do I start a habit?");
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByRole("button", { name: "Stop" })).toBeVisible();
+  await expect(page.locator(".msg.user").getByText("notes.txt · 12 words")).toBeVisible();
   await expect(page.getByText("Want me to make a checklist for you?")).toBeVisible({ timeout: 15_000 });
   await expect(page.locator(".md code.hljs")).toBeVisible();
   await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();

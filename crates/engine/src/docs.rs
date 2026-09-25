@@ -9,11 +9,11 @@ pub const MAX_FILE_BYTES: u64 = 50 * 1024 * 1024;
 
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum DocError {
-    #[error("this file type isn't supported (use .txt, .md, .pdf or .docx)")]
+    #[error("this file type isn't supported (use .txt, .md, .pdf, .docx or an image)")]
     Unsupported,
     #[error("the file is larger than 50 MB")]
     TooLarge,
-    #[error("no text found; scanned documents (images of text) aren't supported yet")]
+    #[error("no text found in it")]
     NoText,
     #[error("the file couldn't be read: {0}")]
     Unreadable(String),

@@ -2,6 +2,10 @@
 
 export type Attachment = { name: string, 
 /**
- * Extracted text; sent to the model with the message.
+ * Extracted text (for images: text read by OCR); sent to models that can't see images.
  */
-text: string, };
+text: string, 
+/**
+ * For images: the saved file (in `images/`), shown to models that can look at images.
+ */
+image: string | null, };

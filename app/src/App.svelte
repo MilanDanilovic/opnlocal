@@ -44,7 +44,7 @@
     {#if showDownloadBanner && dl}
       <button class="global-banner" onclick={() => app.go({ name: "download", id: dl.modelId })}>
         <Icon name="download" />
-        <span>{t.download.banner(app.modelName(dl.modelId), dlPct)}</span>
+        <span>{t.download.banner(app.modelName(dl.modelId) + (dl.vision ? t.download.visionSuffix : ""), dlPct)}</span>
         <progress max="100" value={dlPct} aria-hidden="true"></progress>
       </button>
     {/if}

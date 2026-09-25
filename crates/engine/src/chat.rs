@@ -5,6 +5,7 @@
 //! methods). Output is split by [`ReplyParser`] according to the model's [`ReasoningFormat`].
 
 use crate::catalog::{ReasoningFormat, ThinkingControl};
+use crate::store::Attachment;
 use serde::Serialize;
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
@@ -222,17 +223,30 @@ pub fn plan_prompt(
     }
 }
 
-/// The user's message with attached documents placed before it.
-pub fn user_content(text: &str, attachments: &[(String, String)]) -> String {
+/// Where an attached image goes in the prompt; the runtime replaces it with the image itself.
+pub const MEDIA_MARKER: &str = "<__media__>";
+
+/// The user's message with its attachments placed before it. Images are given to a model that
+/// can look at them (`see_images`) as a marker, and to any other model as the text read from them.
+pub fn user_content(text: &str, attachments: &[Attachment], see_images: bool) -> String {
     let mut out = String::new();
-    for (name, body) in attachments {
-        out.push_str(&format!(
-            "[Attached document: {name}]\n{}\n[End of document: {name}]\n\n",
-            body.trim()
-        ));
+    for a in attachments {
+        let name = &a.name;
+        if a.image.is_some() && see_images {
+            out.push_str(&format!("[Attached image: {name}]\n{MEDIA_MARKER}\n\n"));
+        } else {
+            let kind = if a.image.is_some() { "image, only the text read from it (the picture itself is not included)" } else { "document" };
+            out.push_str(&format!("[Attached {kind}: {name}]\n{}\n[End of {name}]\n\n", a.text.trim()));
+        }
     }
     out.push_str(text);
     out
+}
+
+/// Rough token count without a tokenizer: about four characters per token in most text.
+/// Good enough to refuse a document long before the exact count at send time would.
+pub fn estimate_tokens(text: &str) -> u32 {
+    text.chars().count().div_ceil(4) as u32
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -640,14 +654,25 @@ mod tests {
 
     #[test]
     fn attachments_come_before_the_question() {
-        let c = user_content(
-            "Summarize it",
-            &[("notes.txt".into(), "  Line one.\n".into())],
-        );
+        let doc = Attachment { name: "notes.txt".into(), text: "  Line one.\n".into(), image: None };
         assert_eq!(
-            c,
-            "[Attached document: notes.txt]\nLine one.\n[End of document: notes.txt]\n\nSummarize it"
+            user_content("Summarize it", &[doc], false),
+            "[Attached document: notes.txt]\nLine one.\n[End of notes.txt]\n\nSummarize it"
         );
+        // Images: a marker for models that can see, the text read from them for the rest.
+        let photo = Attachment { name: "sign.jpg".into(), text: "EXIT".into(), image: Some("a.jpg".into()) };
+        assert_eq!(user_content("What does it say?", std::slice::from_ref(&photo), true), "[Attached image: sign.jpg]\n<__media__>\n\nWhat does it say?");
+        assert_eq!(
+            user_content("What does it say?", &[photo], false),
+            "[Attached image, only the text read from it (the picture itself is not included): sign.jpg]\nEXIT\n[End of sign.jpg]\n\nWhat does it say?"
+        );
+    }
+
+    #[test]
+    fn token_estimate_is_four_characters_each() {
+        assert_eq!(estimate_tokens(""), 0);
+        assert_eq!(estimate_tokens("abcde"), 2);
+        assert_eq!(estimate_tokens(&"word ".repeat(100)), 125);
     }
 
     #[test]

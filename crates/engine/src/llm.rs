@@ -10,6 +10,7 @@ use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::{AddBos, LlamaModel};
+use llama_cpp_2::mtmd::{MtmdBitmap, MtmdContext, MtmdContextParams, MtmdInputText};
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use serde::{Deserialize, Serialize};
@@ -86,6 +87,8 @@ pub struct LoadOptions {
     /// Written before a GPU load and removed once the model has run once. If the app dies in
     /// between, the next launch finds it and falls back to the processor.
     pub crash_marker: Option<PathBuf>,
+    /// The model's image encoder (mmproj file), when attached images should be looked at.
+    pub vision: Option<PathBuf>,
 }
 
 #[derive(Serialize, Deserialize, TS, Clone, Debug, PartialEq)]
@@ -100,6 +103,8 @@ pub struct LoadInfo {
     pub gpu_device: Option<String>,
     /// Some weights (MoE experts) stay in system memory even though layers run on the GPU.
     pub split_with_cpu: bool,
+    /// The image encoder is loaded: prompts may contain images.
+    pub vision: bool,
 }
 
 /// Model facts needed to build prompts.
@@ -127,7 +132,15 @@ pub struct GenerateRequest {
     pub sampling: SamplingParams,
     /// Set to true to stop generating; checked between tokens.
     pub stop: Arc<AtomicBool>,
+    /// Called with the fraction of a long prompt read so far (only when it takes several batches).
+    pub on_progress: Option<Arc<dyn Fn(f32) + Send + Sync>>,
+    /// Encoded images (JPEG/PNG), one per [`MEDIA_MARKER`] in the prompt, in order. Needs the
+    /// image encoder loaded (`LoadOptions::vision`).
+    pub images: Vec<Vec<u8>>,
 }
+
+/// Where an image goes in a prompt. Must match `chat::MEDIA_MARKER`.
+pub const MEDIA_MARKER: &str = "<__media__>";
 
 #[derive(Serialize, Deserialize, TS, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -301,7 +314,7 @@ fn worker(backend: &'static LlamaBackend, rx: mpsc::Receiver<Command>) {
 
         let started = Instant::now();
         let loaded = load_model(backend, &opts, progress);
-        let Placed { model, gpu_layers, gpu_device, split_with_cpu } = match loaded {
+        let Placed { model, gpu_layers, gpu_device, split_with_cpu, cache } = match loaded {
             Ok(v) => v,
             Err(e) => {
                 clear_marker(&opts);
@@ -309,7 +322,13 @@ fn worker(backend: &'static LlamaBackend, rx: mpsc::Receiver<Command>) {
                 continue;
             }
         };
-        let mut ctx = match model.new_context(backend, context_params(&opts)) {
+        let created = model
+            .new_context(backend, context_params(&opts, cache.context, cache.kv_8bit))
+            .or_else(|_| {
+                let c = cache.fallback();
+                model.new_context(backend, context_params(&opts, c.context, c.kv_8bit))
+            });
+        let mut ctx = match created {
             Ok(c) => c,
             Err(e) => {
                 clear_marker(&opts);
@@ -336,6 +355,14 @@ fn worker(backend: &'static LlamaBackend, rx: mpsc::Receiver<Command>) {
             }));
             continue;
         }
+        let mtmd = match opts.vision.as_ref().map(|p| load_vision(p, &model, &opts)) {
+            Some(Ok(m)) => Some(m),
+            Some(Err(e)) => {
+                let _ = reply.send(Err(e));
+                continue;
+            }
+            None => None,
+        };
 
         let text = ModelText {
             chat_template: model
@@ -357,6 +384,7 @@ fn worker(backend: &'static LlamaBackend, rx: mpsc::Receiver<Command>) {
             total_layers: model.n_layer(),
             gpu_device,
             split_with_cpu,
+            vision: mtmd.is_some(),
         };
         let _ = reply.send(Ok((info, text)));
 
@@ -385,7 +413,7 @@ fn worker(backend: &'static LlamaBackend, rx: mpsc::Receiver<Command>) {
                     mut on_text,
                     reply,
                 }) => {
-                    let r = generate(&model, &mut ctx, &mut cache, &req, &mut on_text);
+                    let r = generate(&model, &mut ctx, mtmd.as_ref(), &mut cache, &req, &mut on_text);
                     let _ = reply.send(r);
                 }
                 Err(_) => return,
@@ -439,28 +467,33 @@ fn load_model(
             })?,
     };
 
-    if let GpuChoice::Auto { .. } = opts.gpu {
+    let mut cache = CachePlan { context: opts.context, kv_8bit: true };
+    if let GpuChoice::Auto { device_index } = opts.gpu {
         // llama.cpp's own fitter decides how many layers (and which MoE experts) go on the GPU.
-        let mut cparams = context_params(opts);
-        let mut margins = vec![768 * 1024 * 1024usize; llama_max_devices()];
         let path = std::ffi::CString::new(opts.path.to_string_lossy().as_bytes()).map_err(|e| {
             LlmError::LoadFailed {
                 message: e.to_string(),
             }
         })?;
-        let mut pinned = std::pin::pin!(params);
-        let fitted = pinned.as_mut().fit_params(
-            &path,
-            &mut cparams,
-            &mut margins,
-            opts.context,
-            llama_cpp_sys_2::GGML_LOG_LEVEL_ERROR,
-        );
-        params = if fitted.is_ok() {
-            std::mem::take(&mut *pinned)
-        } else {
-            // Doesn't fit on the card at all: processor only.
-            base().with_n_gpu_layers(0)
+        let fit = |cache: CachePlan| -> Result<LlamaModelParams, ()> {
+            let mut cparams = context_params(opts, cache.context, cache.kv_8bit);
+            let mut margins = vec![768 * 1024 * 1024usize; llama_max_devices()];
+            let fresh = base().with_devices(&[device_index as usize]).map_err(|_| ())?;
+            let mut pinned = std::pin::pin!(fresh);
+            pinned
+                .as_mut()
+                .fit_params(&path, &mut cparams, &mut margins, cache.context, llama_cpp_sys_2::GGML_LOG_LEVEL_ERROR)
+                .map_err(|_| ())?;
+            Ok(std::mem::take(&mut *pinned))
+        };
+        params = match fit(cache) {
+            Ok(p) => p,
+            Err(()) => {
+                // The fitter creates a context to measure: an 8-bit cache the backend can't do
+                // fails here too, so try the fallback cache before giving up on the card.
+                cache = cache.fallback();
+                fit(cache).unwrap_or_else(|()| base().with_n_gpu_layers(0))
+            }
         };
     }
 
@@ -492,6 +525,7 @@ fn load_model(
         gpu_layers,
         gpu_device: if uses_gpu { gpu_device } else { None },
         split_with_cpu,
+        cache,
     })
 }
 
@@ -500,18 +534,55 @@ struct Placed {
     gpu_layers: i32,
     gpu_device: Option<String>,
     split_with_cpu: bool,
+    cache: CachePlan,
+}
+
+/// The KV cache is 8-bit where the backend can do it (needs flash attention); otherwise f16 at
+/// half the context, which costs the same memory, so the fit estimate holds either way.
+#[derive(Clone, Copy)]
+struct CachePlan {
+    context: u32,
+    kv_8bit: bool,
+}
+
+impl CachePlan {
+    fn fallback(self) -> CachePlan {
+        CachePlan { context: (self.context / 2).max(256), kv_8bit: false }
+    }
+}
+
+/// Loads the image encoder next to the model. Images are shrunk before they get here, so the
+/// model's default token budget per image is fine.
+fn load_vision(path: &Path, model: &LlamaModel, opts: &LoadOptions) -> Result<MtmdContext, LlmError> {
+    let params = MtmdContextParams {
+        use_gpu: !matches!(opts.gpu, GpuChoice::None),
+        print_timings: false,
+        n_threads: opts.threads.unwrap_or(4) as i32,
+        media_marker: std::ffi::CString::new(MEDIA_MARKER).expect("no NUL in marker"),
+        image_min_tokens: -1,
+        image_max_tokens: -1,
+    };
+    MtmdContext::init_from_file(&path.to_string_lossy(), model, &params).map_err(|e| LlmError::LoadFailed {
+        message: format!("image support could not be loaded: {e}"),
+    })
 }
 
 fn llama_max_devices() -> usize {
     llama_cpp_2::max_devices().max(1)
 }
 
-fn context_params(opts: &LoadOptions) -> LlamaContextParams {
+/// `context` overrides `opts.context`. `kv_8bit`: q8_0 KV cache (the memory estimate assumes
+/// it, see `fit::KV_8BIT_FRACTION`); needs flash attention, which not every backend has.
+fn context_params(opts: &LoadOptions, context: u32, kv_8bit: bool) -> LlamaContextParams {
+    use llama_cpp_2::context::params::KvCacheType;
     let mut p = LlamaContextParams::default()
-        .with_n_ctx(NonZeroU32::new(opts.context))
+        .with_n_ctx(NonZeroU32::new(context))
         .with_n_batch(opts.ubatch.max(512))
         .with_n_ubatch(opts.ubatch)
         .with_no_perf(false);
+    if kv_8bit {
+        p = p.with_type_k(KvCacheType::Q8_0).with_type_v(KvCacheType::Q8_0);
+    }
     if let Some(t) = opts.threads {
         p = p.with_n_threads(t as i32).with_n_threads_batch(t as i32);
     }
@@ -555,74 +626,46 @@ fn sampler(p: &SamplingParams) -> LlamaSampler {
     LlamaSampler::chain_simple(chain)
 }
 
+/// What reading the prompt left behind: how many tokens it had, how many had to be processed
+/// (the rest were reused), and the position the reply starts at.
+struct Prefill {
+    prompt_tokens: u32,
+    processed: u32,
+    pos: usize,
+}
+
+fn runtime_error(e: &dyn std::fmt::Display) -> LlmError {
+    LlmError::Runtime { message: e.to_string() }
+}
+
 fn generate(
     model: &LlamaModel,
     ctx: &mut llama_cpp_2::context::LlamaContext,
+    mtmd: Option<&MtmdContext>,
     cache: &mut Vec<LlamaToken>,
     req: &GenerateRequest,
     on_text: &mut TextSink,
 ) -> Result<GenerateStats, LlmError> {
     let started = Instant::now();
-    let rt = |e: &dyn std::fmt::Display| LlmError::Runtime {
-        message: e.to_string(),
-    };
-    let tokens = model
-        .str_to_token(&req.prompt, AddBos::Never)
-        .map_err(|e| rt(&e))?;
     let n_ctx = ctx.n_ctx() as usize;
-    if tokens.len() + 1 >= n_ctx {
-        return Err(LlmError::ContextFull);
-    }
-
-    // Reuse the part of the previous prompt that is unchanged (the conversation so far).
-    let mut keep = cache
-        .iter()
-        .zip(&tokens)
-        .take_while(|(a, b)| a == b)
-        .count();
-    // We need at least one new token to get fresh logits.
-    keep = keep.min(tokens.len() - 1);
-    if keep < cache.len() {
-        // Recurrent/hybrid models can't roll back part of their state: start over.
-        let partial_ok = !model.is_recurrent()
-            && !model.is_hybrid()
-            && ctx
-                .clear_kv_cache_seq(Some(0), Some(keep as u32), None)
-                .unwrap_or(false);
-        if !partial_ok {
-            ctx.clear_kv_cache();
-            keep = 0;
-        }
-        cache.truncate(keep);
-    }
-
-    let n_batch = ctx.n_batch() as usize;
-    let mut batch = LlamaBatch::new(n_batch.max(1), 1);
-    let new_tokens = &tokens[keep..];
     let prompt_started = Instant::now();
-    for (ci, chunk) in new_tokens.chunks(n_batch).enumerate() {
-        if req.stop.load(Ordering::Relaxed) {
-            cache.clear();
-            ctx.clear_kv_cache();
-            return Ok(stats(&tokens, 0, 0.0, 0.0, 0, 0.0, StopReason::Stopped));
-        }
-        batch.clear();
-        let is_last_chunk = (ci + 1) * n_batch >= new_tokens.len();
-        for (i, tok) in chunk.iter().enumerate() {
-            let pos = keep + ci * n_batch + i;
-            let logits = is_last_chunk && i == chunk.len() - 1;
-            batch.add(*tok, pos as i32, &[0], logits).map_err(|e| rt(&e))?;
-        }
-        if let Err(e) = ctx.decode(&mut batch) {
-            cache.clear();
-            ctx.clear_kv_cache();
-            return Err(rt(&e));
-        }
-    }
+    let prefill = if req.images.is_empty() {
+        prefill_text(model, ctx, cache, req)?
+    } else {
+        // Images can't be cached across turns yet: the whole conversation is read again.
+        cache.clear();
+        ctx.clear_kv_cache();
+        let mtmd = mtmd.ok_or_else(|| runtime_error(&"this model can't look at images"))?;
+        prefill_with_images(ctx, mtmd, req)?
+    };
+    let Some(Prefill { prompt_tokens, processed, mut pos }) = prefill else {
+        return Ok(stats(0, 0, 0.0, 0.0, 0, 0.0, StopReason::Stopped));
+    };
     let prompt_ms = prompt_started.elapsed().as_secs_f64() * 1000.0;
-    cache.clear();
-    cache.extend_from_slice(&tokens);
+    // With images in the prompt, positions and tokens don't line up, so the text cache stays empty.
+    let track = req.images.is_empty();
 
+    let mut batch = LlamaBatch::new(1, 1);
     let mut sampler = sampler(&req.sampling);
     let mut decoder = encoding_rs::UTF_8.new_decoder();
     let mut generated = 0u32;
@@ -650,27 +693,28 @@ fn generate(
             reason = StopReason::Stopped;
             break;
         }
-        if cache.len() + 1 >= n_ctx {
+        if pos + 1 >= n_ctx {
             reason = StopReason::ContextFull;
             break;
         }
         batch.clear();
-        batch
-            .add(tok, cache.len() as i32, &[0], true)
-            .map_err(|e| rt(&e))?;
+        batch.add(tok, pos as i32, &[0], true).map_err(|e| runtime_error(&e))?;
         if let Err(e) = ctx.decode(&mut batch) {
             cache.clear();
             ctx.clear_kv_cache();
-            return Err(rt(&e));
+            return Err(runtime_error(&e));
         }
-        cache.push(tok);
+        pos += 1;
+        if track {
+            cache.push(tok);
+        }
     }
     let generation_ms = first_at
         .map(|t| t.elapsed().as_secs_f64() * 1000.0)
         .unwrap_or(0.0);
     Ok(stats(
-        &tokens,
-        new_tokens.len() as u32,
+        prompt_tokens,
+        processed,
         prompt_ms,
         first_token_ms,
         generated,
@@ -679,8 +723,113 @@ fn generate(
     ))
 }
 
+/// Reads a text prompt, reusing the part of the previous prompt that is unchanged (the
+/// conversation so far). `None` when stopped by the user.
+fn prefill_text(
+    model: &LlamaModel,
+    ctx: &mut llama_cpp_2::context::LlamaContext,
+    cache: &mut Vec<LlamaToken>,
+    req: &GenerateRequest,
+) -> Result<Option<Prefill>, LlmError> {
+    let rt = runtime_error;
+    let tokens = model
+        .str_to_token(&req.prompt, AddBos::Never)
+        .map_err(|e| rt(&e))?;
+    let n_ctx = ctx.n_ctx() as usize;
+    if tokens.len() + 1 >= n_ctx {
+        return Err(LlmError::ContextFull);
+    }
+
+    let mut keep = cache
+        .iter()
+        .zip(&tokens)
+        .take_while(|(a, b)| a == b)
+        .count();
+    // We need at least one new token to get fresh logits.
+    keep = keep.min(tokens.len() - 1);
+    if keep < cache.len() {
+        // Recurrent/hybrid models can't roll back part of their state: start over.
+        let partial_ok = !model.is_recurrent()
+            && !model.is_hybrid()
+            && ctx
+                .clear_kv_cache_seq(Some(0), Some(keep as u32), None)
+                .unwrap_or(false);
+        if !partial_ok {
+            ctx.clear_kv_cache();
+            keep = 0;
+        }
+        cache.truncate(keep);
+    }
+
+    let n_batch = ctx.n_batch() as usize;
+    let mut batch = LlamaBatch::new(n_batch.max(1), 1);
+    let new_tokens = &tokens[keep..];
+    for (ci, chunk) in new_tokens.chunks(n_batch).enumerate() {
+        if req.stop.load(Ordering::Relaxed) {
+            cache.clear();
+            ctx.clear_kv_cache();
+            return Ok(None);
+        }
+        batch.clear();
+        let is_last_chunk = (ci + 1) * n_batch >= new_tokens.len();
+        for (i, tok) in chunk.iter().enumerate() {
+            let pos = keep + ci * n_batch + i;
+            let logits = is_last_chunk && i == chunk.len() - 1;
+            batch.add(*tok, pos as i32, &[0], logits).map_err(|e| rt(&e))?;
+        }
+        if let Err(e) = ctx.decode(&mut batch) {
+            cache.clear();
+            ctx.clear_kv_cache();
+            return Err(rt(&e));
+        }
+        if let Some(progress) = &req.on_progress
+            && new_tokens.len() > n_batch
+        {
+            progress(((ci + 1) * n_batch).min(new_tokens.len()) as f32 / new_tokens.len() as f32);
+        }
+    }
+    cache.clear();
+    cache.extend_from_slice(&tokens);
+    Ok(Some(Prefill {
+        prompt_tokens: tokens.len() as u32,
+        processed: new_tokens.len() as u32,
+        pos: tokens.len(),
+    }))
+}
+
+/// Reads a prompt with images: the encoder turns each image into embeddings at its marker.
+fn prefill_with_images(
+    ctx: &mut llama_cpp_2::context::LlamaContext,
+    mtmd: &MtmdContext,
+    req: &GenerateRequest,
+) -> Result<Option<Prefill>, LlmError> {
+    let rt = runtime_error;
+    let bitmaps = req
+        .images
+        .iter()
+        .map(|bytes| MtmdBitmap::from_buffer(mtmd, bytes, false).map_err(|e| rt(&e)))
+        .collect::<Result<Vec<_>, _>>()?;
+    let refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
+    let text = MtmdInputText { text: req.prompt.clone(), add_special: false, parse_special: true };
+    let chunks = mtmd.tokenize(text, &refs).map_err(|e| rt(&e))?;
+    let total = chunks.total_tokens();
+    if total + 1 >= ctx.n_ctx() as usize {
+        return Err(LlmError::ContextFull);
+    }
+    if req.stop.load(Ordering::Relaxed) {
+        return Ok(None);
+    }
+    let n_batch = ctx.n_batch() as i32;
+    let pos = chunks.eval_chunks(mtmd, ctx, 0, 0, n_batch, true).map_err(|e| rt(&e))?;
+    Ok(Some(Prefill {
+        prompt_tokens: total as u32,
+        processed: total as u32,
+        pos: pos as usize,
+    }))
+}
+
 fn stats(
-    tokens: &[LlamaToken],
+    prompt_tokens: u32,
     processed: u32,
     prompt_ms: f64,
     first_token_ms: f64,
@@ -689,7 +838,7 @@ fn stats(
     stop_reason: StopReason,
 ) -> GenerateStats {
     GenerateStats {
-        prompt_tokens: tokens.len() as u32,
+        prompt_tokens,
         prompt_tokens_processed: processed,
         prompt_ms,
         first_token_ms,
@@ -728,6 +877,7 @@ pub(crate) mod tests {
                     gpu: GpuChoice::None,
                     threads: Some(4),
                     crash_marker: None,
+                    vision: None,
                 },
                 |_| {},
             )
@@ -748,6 +898,8 @@ pub(crate) mod tests {
                 seed: 1,
             },
             stop: Arc::new(AtomicBool::new(false)),
+            on_progress: None,
+            images: vec![],
         }
     }
 
@@ -775,6 +927,7 @@ pub(crate) mod tests {
                 gpu: GpuChoice::None,
                 threads: None,
                 crash_marker: None,
+                vision: None,
             },
             |_| {},
         );
@@ -874,6 +1027,7 @@ pub(crate) mod tests {
                 gpu: GpuChoice::None,
                 threads: None,
                 crash_marker: Some(marker.clone()),
+                vision: None,
             },
             |_| {},
         )

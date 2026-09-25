@@ -4,6 +4,7 @@
 
 import type { Backend, EngineEvent } from "./api";
 import type { AppState } from "./bindings/AppState";
+import type { Attachment } from "./bindings/Attachment";
 import type { BenchmarkResult } from "./bindings/BenchmarkResult";
 import type { Catalog } from "./bindings/Catalog";
 import type { Conversation } from "./bindings/Conversation";
@@ -109,6 +110,7 @@ export function mockBackend(): Backend {
   const listeners: ((e: EngineEvent) => void)[] = [];
   const emit = (e: EngineEvent) => listeners.forEach((l) => l(e));
   const installed = new Set<string>(s === "returning" ? ["qwen3.5-4b"] : []);
+  const visionInstalled = new Set<string>();
   const conversations = new Map<string, Conversation>();
   let cancelled = false;
   let stopFlag = false;
@@ -149,6 +151,7 @@ export function mockBackend(): Backend {
     models: catalog.models,
     imported: [],
     installed: [...installed],
+    vision_installed: [...visionInstalled],
     partial_downloads: [],
     active_download: null,
     benchmarks,
@@ -221,6 +224,16 @@ export function mockBackend(): Backend {
       installed.add(m.id);
       emit({ type: "download_finished", model_id: m.id, error: null });
     },
+    download_vision: async (a) => {
+      const m = catalog.models.find((x) => x.id === a.modelId)!;
+      const total = m.vision?.size ?? 0;
+      for (let i = 1; i <= 10; i++) {
+        await sleep(60);
+        emit({ type: "download_progress", model_id: m.id, progress: { stage: "downloading", done: (total * i) / 10, total, bytes_per_second: 42_000_000 } });
+      }
+      visionInstalled.add(m.id);
+      emit({ type: "download_finished", model_id: m.id, error: null });
+    },
     cancel_download: async () => {
       cancelled = true;
     },
@@ -263,6 +276,14 @@ export function mockBackend(): Backend {
     },
     unload_model: async () => {},
     attach_file: async (a) => ({ name: String(a.path).split(/[\\/]/).pop(), text: "Quarterly notes. Revenue grew 4%. Deadline for the report is 14 October." }),
+    check_attachments: async (a) => {
+      // Same rule as the engine: an image with no readable text is useless to a model that can't see.
+      const m = catalog.models.find((x) => x.id === a.modelId);
+      const blank = (a.attachments as Attachment[]).find((x) => x.image && !x.text.trim());
+      if (blank && !(m?.vision && visionInstalled.has(m.id))) {
+        throw { kind: "document", message: `no text was found in ${blank.name}, and this model can't look at images` };
+      }
+    },
     import_model: async () => {
       throw { kind: "bad_model_file", message: "this is not a GGUF model file" };
     },
@@ -275,7 +296,7 @@ export function mockBackend(): Backend {
       emit({ type: "model_loading", model_id: c.model_id, fraction: i / 10 });
       await sleep(30);
     }
-    emit({ type: "chat_started", conversation_id: c.id, message_id: messageId, dropped_messages: 0 });
+    emit({ type: "chat_started", conversation_id: c.id, message_id: messageId, dropped_messages: 0, partial_documents: false });
     const thinking = thinkHarder ? "The user wants a clear answer. I'll structure it as steps and keep it short." : "";
     for (const w of thinking.split(" ")) {
       if (!w) continue;

@@ -2,7 +2,7 @@
 import type { DownloadError } from "./DownloadError";
 import type { LlmError } from "./LlmError";
 
-export type EngineError = { "kind": "unknown_model", id: string, } | { "kind": "not_installed", id: string, } | { "kind": "license_not_accepted", license_id: string, } | { "kind": "download_in_progress", model_id: string, } | { "kind": "download", error: DownloadError, } | { "kind": "llm", error: LlmError, } | { "kind": "message_too_long", 
+export type EngineError = { "kind": "unknown_model", id: string, } | { "kind": "no_vision", id: string, } | { "kind": "not_installed", id: string, } | { "kind": "license_not_accepted", license_id: string, } | { "kind": "download_in_progress", model_id: string, } | { "kind": "download", error: DownloadError, } | { "kind": "llm", error: LlmError, } | { "kind": "message_too_long", 
 /**
  * Prompt size relative to what fits, e.g. 2.3 = "about 2.3 times too long".
  */

@@ -113,8 +113,11 @@ pub enum Role {
 #[ts(export)]
 pub struct Attachment {
     pub name: String,
-    /// Extracted text; sent to the model with the message.
+    /// Extracted text (for images: text read by OCR); sent to models that can't see images.
     pub text: String,
+    /// For images: the saved file (in `images/`), shown to models that can look at images.
+    #[serde(default)]
+    pub image: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, TS, Clone, Debug, PartialEq)]
@@ -215,6 +218,29 @@ impl Store {
         safe_id(id) && self.model_path(id).is_file()
     }
 
+    /// The model's image encoder, next to the model file.
+    pub fn vision_path(&self, id: &str) -> PathBuf {
+        self.models_dir().join(format!("{id}.mmproj.gguf"))
+    }
+
+    pub fn has_vision(&self, id: &str) -> bool {
+        safe_id(id) && self.vision_path(id).is_file()
+    }
+
+    /// Attached images, kept as files (conversations stay small JSON).
+    pub fn image_path(&self, file: &str) -> Option<PathBuf> {
+        safe_id(file.trim_end_matches(".jpg")).then(|| self.root.join("images").join(file))
+    }
+
+    /// Saves an encoded image and returns its file name.
+    pub fn save_image(&self, jpeg: &[u8]) -> std::io::Result<String> {
+        let dir = self.root.join("images");
+        std::fs::create_dir_all(&dir)?;
+        let file = format!("{}.jpg", new_id());
+        std::fs::write(dir.join(&file), jpeg)?;
+        Ok(file)
+    }
+
     pub fn gpu_marker(&self) -> PathBuf {
         self.root.join("gpu-load.marker")
     }
@@ -257,11 +283,12 @@ impl Store {
         if !safe_id(id) {
             return Ok(());
         }
-        let path = self.model_path(id);
-        if path.exists() {
-            std::fs::remove_file(&path)?;
+        for path in [self.model_path(id), self.vision_path(id)] {
+            if path.exists() {
+                std::fs::remove_file(&path)?;
+            }
+            crate::download::discard_partial(&path);
         }
-        crate::download::discard_partial(&path);
         let mut b = self.benchmarks();
         if b.remove(id).is_some() {
             write_json(&self.root.join("benchmarks.json"), &b)?;
@@ -291,11 +318,19 @@ impl Store {
         write_json(&path, c)
     }
 
+    /// Removes the conversation and the images attached in it.
     pub fn delete_conversation(&self, id: &str) -> std::io::Result<()> {
-        match self.conversation_path(id) {
-            Some(p) if p.exists() => std::fs::remove_file(p),
-            _ => Ok(()),
+        let Some(path) = self.conversation_path(id).filter(|p| p.exists()) else {
+            return Ok(());
+        };
+        if let Some(c) = self.conversation(id) {
+            for image in c.messages.iter().flat_map(|m| &m.attachments).filter_map(|a| a.image.as_deref()) {
+                if let Some(p) = self.image_path(image) {
+                    let _ = std::fs::remove_file(p);
+                }
+            }
         }
+        std::fs::remove_file(path)
     }
 
     pub fn delete_all_conversations(&self) -> std::io::Result<()> {

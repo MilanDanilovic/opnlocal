@@ -30,7 +30,10 @@
 {#if message.role === "user"}
   <div class="msg user">
     {#each message.attachments as a (a.name)}
-      <p class="chip"><Icon name="doc" size={16} /> {t.chat.attachmentWords(a.name, countWords(a.text))}</p>
+      <p class="chip">
+        <Icon name={a.image ? "image" : "doc"} size={16} />
+        {a.image ? t.chat.attachmentImage(a.name, countWords(a.text)) : t.chat.attachmentWords(a.name, countWords(a.text))}
+      </p>
     {/each}
     {#if message.content}<div class="bubble">{message.content}</div>{/if}
   </div>

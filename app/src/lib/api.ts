@@ -38,7 +38,7 @@ async function tauriBackend(): Promise<Backend> {
       const picked = await dialog.open({
         multiple: false,
         filters: documents
-          ? [{ name: "Documents", extensions: ["txt", "md", "pdf", "docx"] }]
+          ? [{ name: "Documents and images", extensions: ["txt", "md", "pdf", "docx", "png", "jpg", "jpeg", "webp", "bmp", "gif", "tif", "tiff"] }]
           : [{ name: "Model files", extensions: ["gguf"] }],
       });
       return typeof picked === "string" ? picked : null;
@@ -71,6 +71,8 @@ export const api = {
   acceptLicense: (licenseId: string) => call<Settings>("accept_license", { licenseId }),
   refreshCatalog: (force: boolean) => call<CatalogRefresh>("refresh_catalog", { force }),
   download: (modelId: string) => call<void>("download_model", { modelId }),
+  /** The model's image encoder, so it can look at attached images. */
+  downloadVision: (modelId: string) => call<void>("download_vision", { modelId }),
   cancelDownload: () => call<void>("cancel_download"),
   deleteModel: (modelId: string) => call<void>("delete_model", { modelId }),
   benchmark: (modelId: string) => call<BenchmarkResult>("run_benchmark", { modelId }),
@@ -87,5 +89,8 @@ export const api = {
     call<Conversation>("set_conversation_model", { id, modelId }),
   unload: () => call<void>("unload_model"),
   attachFile: (path: string) => call<Attachment>("attach_file", { path }),
+  /** Rejects with `document` when an attachment is of no use to this model (an image with no text, to a model that can't see). */
+  checkAttachments: (modelId: string, attachments: Attachment[]) =>
+    call<void>("check_attachments", { modelId, attachments }),
   importModel: (path: string) => call<ImportedModel>("import_model", { path }),
 };

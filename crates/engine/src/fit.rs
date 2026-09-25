@@ -15,6 +15,9 @@ pub const OVERHEAD_BYTES: u64 = 256 * 1024 * 1024;
 pub const STORAGE_MARGIN_BYTES: u64 = 512 * 1024 * 1024;
 /// Never go below this context; smaller is useless for a conversation.
 pub const MIN_CONTEXT: u32 = 2048;
+/// The KV cache runs 8-bit (q8_0: 8.5 bits per value) while profiles measure the f16 cache.
+/// When a backend can't do that, the runtime halves the context instead, so the estimate holds.
+pub const KV_8BIT_FRACTION: f64 = 9.0 / 16.0;
 
 #[derive(Serialize, Deserialize, TS, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
@@ -132,9 +135,9 @@ pub fn desired_context(use_case: UseCase, platform: Platform) -> u32 {
 pub fn estimate_bytes(m: &MemoryProfile, context: u32, ubatch: u32) -> u64 {
     let ctx = context as u64;
     let swa_tokens = (m.swa_window as u64 + ubatch as u64).min(ctx);
+    let kv = (m.kv_bytes_per_token * ctx + m.swa_kv_bytes_per_token * swa_tokens) as f64 * KV_8BIT_FRACTION;
     m.weights_bytes
-        + m.kv_bytes_per_token * ctx
-        + m.swa_kv_bytes_per_token * swa_tokens
+        + kv as u64
         + m.fixed_bytes
         + m.compute_bytes_per_ubatch_token * ubatch as u64
         + OVERHEAD_BYTES
@@ -203,6 +206,46 @@ pub fn best_fit(m: &MemoryProfile, pools: &MemoryPools, desired: u32, ubatch: u3
     *candidates.iter().find(|f| f.label == best).unwrap()
 }
 
+/// Context to load for a conversation that needs `needed` tokens (prompt plus reply room).
+/// Normally the best fit from `desired` down; when the conversation is longer than that (a
+/// long document), the smallest context that holds it and still fits the device, tight or
+/// not. If nothing holds it, the largest context that fits, so the caller can say by how much
+/// the conversation is too long.
+pub fn context_for(m: &MemoryProfile, pools: &MemoryPools, desired: u32, needed: u32, ubatch: u32) -> Fit {
+    let top = desired.max(needed.next_power_of_two()).min(m.max_context.max(MIN_CONTEXT));
+    let normal = best_fit(m, pools, desired, ubatch);
+    if normal.context >= needed {
+        return normal;
+    }
+    let mut ctx = top;
+    let mut fits = Vec::new();
+    while ctx > normal.context {
+        let f = fit_at(m, pools, ctx, ubatch);
+        if f.label != FitLabel::TooBig {
+            fits.push(f);
+        }
+        ctx /= 2;
+    }
+    fits.into_iter()
+        .filter(|f| f.context >= needed)
+        .min_by_key(|f| f.context)
+        .or_else(|| fits_largest(m, pools, top, ubatch))
+        .unwrap_or(normal)
+}
+
+/// Largest context from `top` down that fits the device at all.
+fn fits_largest(m: &MemoryProfile, pools: &MemoryPools, top: u32, ubatch: u32) -> Option<Fit> {
+    let mut ctx = top;
+    while ctx >= MIN_CONTEXT {
+        let f = fit_at(m, pools, ctx, ubatch);
+        if f.label != FitLabel::TooBig {
+            return Some(f);
+        }
+        ctx /= 2;
+    }
+    None
+}
+
 #[derive(Serialize, Deserialize, TS, Clone, Copy, Debug, PartialEq)]
 #[ts(export)]
 pub struct StorageFit {
@@ -247,7 +290,24 @@ mod tests {
         let m = profile(2.0);
         let small = estimate_bytes(&m, 4096, 512);
         let big = estimate_bytes(&m, 8192, 512);
-        assert_eq!(big - small, 4096 * 32 * 1024);
+        assert_eq!(big - small, (4096.0 * 32.0 * 1024.0 * KV_8BIT_FRACTION) as u64);
+    }
+
+    #[test]
+    fn context_grows_for_long_conversations_and_stops_at_what_fits() {
+        // 16 GB laptop, 2.7 GB model at 32 KiB/token: a normal chat gets the usual context, a
+        // 100k-token document gets the smallest power of two that holds it.
+        let d = device(Platform::Linux, 16, None);
+        let pools = MemoryPools::for_device(&d, true);
+        let m = profile(2.7);
+        assert_eq!(context_for(&m, &pools, 16_384, 3_000, 512).context, 16_384);
+        let long = context_for(&m, &pools, 16_384, 100_000, 512);
+        assert_eq!((long.context, long.label), (131_072, FitLabel::Comfortable));
+        // An 8 GB phone can't hold 100k tokens of a 2 GB model: the largest context that fits.
+        let phone = MemoryPools::for_device(&device(Platform::Android, 8, None), true);
+        let capped = context_for(&profile(2.0), &phone, 4096, 100_000, 256);
+        assert!(capped.context < 100_000 && capped.context > 4096);
+        assert_ne!(capped.label, FitLabel::TooBig);
     }
 
     #[test]
@@ -334,12 +394,12 @@ mod tests {
 
     #[test]
     fn best_fit_shrinks_context_before_giving_up_comfort() {
-        // 16 GB machine: 7 GB weights + 16k ctx of a 160 KiB/token model doesn't fit comfortably,
+        // 16 GB machine: 5.5 GB weights + 16k ctx of a 320 KiB/token model doesn't fit comfortably,
         // but a smaller context does.
         let d = device(Platform::Linux, 16, None);
         let pools = MemoryPools::for_device(&d, true);
         let m = MemoryProfile {
-            kv_bytes_per_token: 160 * 1024,
+            kv_bytes_per_token: 320 * 1024,
             ..profile(5.5)
         };
         let f = best_fit(&m, &pools, 16_384, 512);

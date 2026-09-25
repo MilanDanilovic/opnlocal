@@ -2,11 +2,11 @@
   import { app } from "../lib/store.svelte";
   import { t } from "../lib/strings";
   import { api, asEngineError, backend } from "../lib/api";
-  import { countWords } from "../lib/format";
+  import { bytes, countWords } from "../lib/format";
   import Icon from "./Icon.svelte";
   import type { Attachment } from "../lib/bindings/Attachment";
 
-  let { canThink }: { canThink: boolean } = $props();
+  let { canThink, modelId }: { canThink: boolean; modelId: string } = $props();
 
   let text = $state("");
   let attachments = $state<Attachment[]>([]);
@@ -16,6 +16,12 @@
   let area: HTMLTextAreaElement;
 
   const touch = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
+  // The model could look at images itself, but its image encoder isn't downloaded yet.
+  const visionOffer = $derived.by(() => {
+    const m = app.model(modelId);
+    if (!m?.vision || app.state?.vision_installed.includes(modelId) || app.download?.status === "running") return null;
+    return { name: m.name, size: m.vision.size };
+  });
   const canSend = $derived((text.trim().length > 0 || attachments.length > 0) && !app.generating);
 
   function autosize() {
@@ -41,13 +47,17 @@
     }
   }
 
+  // Reads the picked file (documents: their text; images: text read from them plus a copy for
+  // models that can see) and refuses it right away if it is of no use to this model.
   async function attach() {
     attachError = null;
     const path = await (await backend()).pickFile({ documents: true });
     if (!path) return;
     attaching = true;
     try {
-      attachments = [...attachments, await api.attachFile(path)];
+      const next = [...attachments, await api.attachFile(path)];
+      await api.checkAttachments(modelId, next);
+      attachments = next;
     } catch (e) {
       const err = asEngineError(e);
       attachError = "message" in err ? String(err.message) : t.errors.generic;
@@ -66,8 +76,8 @@
     <div class="attachments">
       {#each attachments as a, i (a.name + i)}
         <span class="chip">
-          <Icon name="doc" size={16} />
-          {t.chat.attachmentWords(a.name, countWords(a.text))}
+          <Icon name={a.image ? "image" : "doc"} size={16} />
+          {a.image ? t.chat.attachmentImage(a.name, countWords(a.text)) : t.chat.attachmentWords(a.name, countWords(a.text))}
           <button type="button" class="x" aria-label={t.chat.removeAttachment(a.name)} onclick={() => (attachments = attachments.filter((_, j) => j !== i))}>
             <Icon name="x" size={14} />
           </button>
@@ -75,6 +85,12 @@
       {/each}
       {#if attachError}<span class="err small" role="alert">{attachError}</span>{/if}
     </div>
+  {/if}
+  {#if visionOffer && attachments.some((a) => a.image)}
+    <p class="offer small" role="status">
+      {t.chat.visionOffer(visionOffer.name, bytes(visionOffer.size))}
+      <button type="button" class="btn secondary" onclick={() => app.startDownload(modelId, true)}>{t.chat.visionAdd}</button>
+    </p>
   {/if}
   <div class="box">
     <button type="button" class="icon-btn" onclick={attach} disabled={attaching || app.generating} aria-label={t.chat.attach} title={t.chat.attach}>
@@ -197,6 +213,18 @@
   }
   .err {
     color: var(--bad);
+  }
+  .offer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin: 0 0 0.4rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 12px;
+    background: var(--surface-2);
+    color: var(--text-2);
   }
   .below {
     display: flex;
