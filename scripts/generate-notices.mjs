@@ -91,6 +91,12 @@ add(
 const webview2 = download("https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2", "webview2.zip");
 add("Microsoft Edge WebView2 SDK loader (Windows builds)", unzipText(webview2, "LICENSE.txt"));
 
+// 6. OCR models built into the engine (crates/engine/ocr), from the ocrs project
+add(
+  "ocrs text detection and recognition models (Robert Knight) — Apache-2.0 / MIT",
+  "The text-detection and text-recognition models from https://github.com/robertknight/ocrs-models\nare compiled into the app, under the Apache License 2.0 (full text above, under Rust crates).",
+);
+
 const out = `${rust.trim()}\n\nOther components\n----------------\n\n${sections.join("\n")}`;
 writeFileSync(join(root, "THIRD_PARTY_NOTICES.txt"), out);
 writeFileSync(join(root, "app", "public", "THIRD_PARTY_NOTICES.txt"), out);

@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": 2,
-  "published": "2026-09-24",
+  "version": 3,
+  "published": "2026-09-25",
   "models": [
     {
       "id": "qwen3.5-0.8b",
@@ -28,6 +28,7 @@
         "size": 833592096,
         "sha256": "37ae482d336108d23516fa35e8e0c4126688d81018b87178a18d752a1357814f"
       },
+      "vision": null,
       "memory": {
         "weights_bytes": 833592096,
         "kv_bytes_per_token": 12288,
@@ -83,6 +84,13 @@
         "path": "Qwen3.5-2B-Q4_K_M.gguf",
         "size": 1280835840,
         "sha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223"
+      },
+      "vision": {
+        "repo": "unsloth/Qwen3.5-2B-GGUF",
+        "revision": "f6d5376be1edb4d416d56da11e5397a961aca8ae",
+        "path": "mmproj-F16.gguf",
+        "size": 668227264,
+        "sha256": "7035e9cb8d7c6a9681d07eef9a364783e86ea4cd73faab2eabb4f43a101830c7"
       },
       "memory": {
         "weights_bytes": 1280835840,
@@ -140,6 +148,7 @@
         "size": 1674455040,
         "sha256": "02a8b7e17487d326e46d68ce0ba24211e1b80a14c4cd0597fa73c1cd697f52ed"
       },
+      "vision": null,
       "memory": {
         "weights_bytes": 1674455040,
         "kv_bytes_per_token": 16384,
@@ -189,6 +198,13 @@
         "path": "Qwen3.5-4B-Q4_K_M.gguf",
         "size": 2740937888,
         "sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4"
+      },
+      "vision": {
+        "repo": "unsloth/Qwen3.5-4B-GGUF",
+        "revision": "e87f176479d0855a907a41277aca2f8ee7a09523",
+        "path": "mmproj-F16.gguf",
+        "size": 672423616,
+        "sha256": "cd88edcf8d031894960bb0c9c5b9b7e1fea6ebee02b9f7ce925a00d12891f864"
       },
       "memory": {
         "weights_bytes": 2740937888,
@@ -246,6 +262,13 @@
         "size": 3106738272,
         "sha256": "740185b21d22ceb83a11c3aa62ad5842ef32c70f6096d756bbee85a1e4ec34b8"
       },
+      "vision": {
+        "repo": "unsloth/gemma-4-E2B-it-GGUF",
+        "revision": "0314792d7f1f7e229411f620751375812bb9faf2",
+        "path": "mmproj-F16.gguf",
+        "size": 985654080,
+        "sha256": "140be8d7849741f88c50757d529b84373ee8e27052cc2236855b537f4a8215fa"
+      },
       "memory": {
         "weights_bytes": 3106738272,
         "kv_bytes_per_token": 6144,
@@ -296,6 +319,13 @@
         "path": "Qwen3.5-9B-Q4_K_M.gguf",
         "size": 5680522464,
         "sha256": "03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8"
+      },
+      "vision": {
+        "repo": "unsloth/Qwen3.5-9B-GGUF",
+        "revision": "3885219b6810b007914f3a7950a8d1b469d598a5",
+        "path": "mmproj-F16.gguf",
+        "size": 918166080,
+        "sha256": "f70dc3509053962b0d0d3ee8a7eacebf5d60aa560cad78254ae8698516ae029f"
       },
       "memory": {
         "weights_bytes": 5680522464,
@@ -353,6 +383,13 @@
         "size": 6975879296,
         "sha256": "93567e57a8fe10b23569b9d9ec38cd005deedf71e29477c421a4b83f418a538b"
       },
+      "vision": {
+        "repo": "google/gemma-4-12B-it-qat-q4_0-gguf",
+        "revision": "29d097773436b69ff9feafd636ab4cf873786537",
+        "path": "mmproj-gemma-4-12b-it-qat-q4_0.gguf",
+        "size": 175115616,
+        "sha256": "cb018338a7538a9814d994bfe54644c71eb7ed54e31eae2f721e45fd3c260da7"
+      },
       "memory": {
         "weights_bytes": 6975879296,
         "kv_bytes_per_token": 16384,
@@ -404,6 +441,7 @@
         "size": 12109566624,
         "sha256": "27cd6c432c7672cb812a92f611cf3ba7bbc35928262bb1e1253ff4ee6ae35901"
       },
+      "vision": null,
       "memory": {
         "weights_bytes": 12109566624,
         "kv_bytes_per_token": 24576,
@@ -458,6 +496,13 @@
         "path": "Qwen3.6-35B-A3B-Q4_K_M.gguf",
         "size": 20419565568,
         "sha256": "671e47e0ec53c665d048b98c3ecbfd5236b5ca9c3e02ed19fc8f81f7b85140c7"
+      },
+      "vision": {
+        "repo": "ggml-org/Qwen3.6-35B-A3B-GGUF",
+        "revision": "baec3ebee244827cda0f4557eafa8b28f7545fa6",
+        "path": "mmproj-Qwen3.6-35B-A3B-Q8_0.gguf",
+        "size": 614194304,
+        "sha256": "904cbf8c8e876220066ab3bf676c7efa40f3da372276fdaf8b01d2fb2a37a51d"
       },
       "memory": {
         "weights_bytes": 20419565568,

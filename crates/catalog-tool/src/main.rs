@@ -94,6 +94,9 @@ struct SourceModel {
     #[serde(flatten)]
     model: serde_json::Value,
     file: SourceFile,
+    /// Image encoder (mmproj) for models that can look at images.
+    #[serde(default)]
+    vision: Option<SourceFile>,
     /// Hand-checked corrections for layouts the GGUF metadata doesn't describe.
     #[serde(default)]
     memory_overrides: Option<MemoryOverrides>,
@@ -126,21 +129,29 @@ struct Lfs {
     oid: String,
 }
 
+/// Size and sha256 of a pinned Hugging Face file, from the repo's file listing.
+async fn resolve_file(client: &reqwest::Client, f: &SourceFile) -> Res<ModelFile> {
+    let dir = Path::new(&f.path).parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+    let tree_url = format!("https://huggingface.co/api/models/{}/tree/{}/{}", f.repo, f.revision, dir);
+    let tree: Vec<TreeEntry> = client.get(&tree_url).send().await.map_err(err)?.error_for_status().map_err(err)?.json().await.map_err(err)?;
+    let entry = tree.into_iter().find(|e| e.path == f.path).ok_or(format!("{} not found in {}", f.path, f.repo))?;
+    let sha256 = entry.lfs.ok_or(format!("{} is not an LFS file", f.path))?.oid;
+    Ok(ModelFile { repo: f.repo.clone(), revision: f.revision.clone(), path: f.path.clone(), size: entry.size, sha256 })
+}
+
 async fn build() -> Res<()> {
     let src_path = root().join("catalog/source.json");
     let source: Source = serde_json::from_slice(&std::fs::read(&src_path).map_err(err)?).map_err(err)?;
     let client = reqwest::Client::new();
     let mut models = Vec::new();
     for sm in source.models {
-        let f = &sm.file;
-        let dir = Path::new(&f.path).parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
-        let tree_url = format!("https://huggingface.co/api/models/{}/tree/{}/{}", f.repo, f.revision, dir);
-        let tree: Vec<TreeEntry> = client.get(&tree_url).send().await.map_err(err)?.error_for_status().map_err(err)?.json().await.map_err(err)?;
-        let entry = tree.into_iter().find(|e| e.path == f.path).ok_or(format!("{} not found in {}", f.path, f.repo))?;
-        let sha256 = entry.lfs.ok_or(format!("{} is not an LFS file", f.path))?.oid;
-        let file = ModelFile { repo: f.repo.clone(), revision: f.revision.clone(), path: f.path.clone(), size: entry.size, sha256 };
+        let file = resolve_file(&client, &sm.file).await?;
+        let vision = match &sm.vision {
+            Some(v) => Some(resolve_file(&client, v).await?),
+            None => None,
+        };
         let header = remote_header(&client, &file.url()).await?;
-        let mut memory: MemoryProfile = header.memory_profile(entry.size);
+        let mut memory: MemoryProfile = header.memory_profile(file.size);
         if let Some(o) = &sm.memory_overrides {
             memory.kv_bytes_per_token = o.kv_bytes_per_token.unwrap_or(memory.kv_bytes_per_token);
             memory.swa_kv_bytes_per_token = o.swa_kv_bytes_per_token.unwrap_or(memory.swa_kv_bytes_per_token);
@@ -149,8 +160,9 @@ async fn build() -> Res<()> {
         }
         let mut value = sm.model;
         value["file"] = serde_json::to_value(&file).map_err(err)?;
+        value["vision"] = serde_json::to_value(&vision).map_err(err)?;
         value["memory"] = serde_json::to_value(memory).map_err(err)?;
-        let model: CatalogModel = serde_json::from_value(value).map_err(|e| format!("{}: {e}", f.path))?;
+        let model: CatalogModel = serde_json::from_value(value).map_err(|e| format!("{}: {e}", file.path))?;
         println!(
             "{:<20} {:>6.2} GB  kv {:>4} KiB/tok  swa {:>4} KiB/tok (window {})  arch {}",
             model.id,
