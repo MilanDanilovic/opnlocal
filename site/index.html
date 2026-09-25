@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>opnlocal | Local AI made simple</title>
   <meta name="description" content="Run AI privately on your own device. opnlocal detects your hardware, recommends a model that fits, downloads it, benchmarks it, and lets you chat locally." />
-  <link rel="canonical" href="https://milandanilovic.github.io/opnlocal/" />
+  <link rel="canonical" href="https://opnlocal.pages.dev/" />
   <link rel="icon" href="icon.png" type="image/png" />
   <link rel="apple-touch-icon" href="icon.png" />
   <meta name="theme-color" content="#f7f6f3" media="(prefers-color-scheme: light)" />
@@ -15,15 +15,15 @@
   <meta property="og:site_name" content="opnlocal" />
   <meta property="og:title" content="opnlocal | Local AI made simple" />
   <meta property="og:description" content="Run AI privately on your own device. opnlocal detects your hardware, recommends a model that fits, downloads it, benchmarks it, and lets you chat locally." />
-  <meta property="og:url" content="https://milandanilovic.github.io/opnlocal/" />
-  <meta property="og:image" content="https://milandanilovic.github.io/opnlocal/og.png" />
+  <meta property="og:url" content="https://opnlocal.pages.dev/" />
+  <meta property="og:image" content="https://opnlocal.pages.dev/og.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="opnlocal: run AI locally without learning how local AI works." />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="opnlocal | Local AI made simple" />
   <meta name="twitter:description" content="Run AI privately on your own device. opnlocal detects your hardware, recommends a model that fits, downloads it, benchmarks it, and lets you chat locally." />
-  <meta name="twitter:image" content="https://milandanilovic.github.io/opnlocal/og.png" />
+  <meta name="twitter:image" content="https://opnlocal.pages.dev/og.png" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -41,7 +41,7 @@
     "license": "https://www.apache.org/licenses/LICENSE-2.0",
     "isAccessibleForFree": true,
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-    "url": "https://milandanilovic.github.io/opnlocal/",
+    "url": "https://opnlocal.pages.dev/",
     "downloadUrl": "https://github.com/MilanDanilovic/opnlocal/releases/latest",
     "codeRepository": "https://github.com/MilanDanilovic/opnlocal"
   }
@@ -178,7 +178,12 @@
     <section class="support" aria-labelledby="support-h">
       <h2 id="support-h">Support opnlocal</h2>
       <p>opnlocal is free and open source. If it saves you time or makes local AI easier to use, you can support development with a coffee.</p>
-      <a class="btn" href="https://ko-fi.com/opnlocal">Buy me a coffee</a>
+      <!-- Ko-fi's own button; the plain link below it is the fallback without JavaScript. -->
+      <div class="kofi">
+        <script type="text/javascript" src="https://storage.ko-fi.com/cdn/widget/Widget_2.js"></script>
+        <script type="text/javascript">kofiwidget2.init('Support us on Ko-fi', '#e07b00', 'U4Q627MZP7');kofiwidget2.draw();</script>
+        <noscript><a class="btn" href="https://ko-fi.com/opnlocal">Buy me a coffee</a></noscript>
+      </div>
     </section>
   </main>
 

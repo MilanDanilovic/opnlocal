@@ -10,20 +10,20 @@ the `releases/latest/download/<stable name>` links, which always resolve to the 
 Preview locally: open `index.html` in a browser after copying `docs/images/demo.gif` into this
 folder (or run `python -m http.server` here).
 
-## Deploy to GitHub Pages (current: https://milandanilovic.github.io/opnlocal/)
+## Deploy to Cloudflare Pages (current: https://opnlocal.pages.dev/)
 
-`.github/workflows/pages.yml` publishes this folder on every push to `main` that touches it.
-One-time setup: repository *Settings → Pages → Build and deployment → Source: GitHub Actions*
-(or `gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow`).
-
-## Deploy to Cloudflare Pages
-
-Create a Pages project connected to the repository with:
+A Pages project connected to the repository, deploying on every push to `main`, with:
 
 | Setting | Value |
 |---|---|
 | Build command | `cp docs/images/demo.gif site/` |
 | Build output directory | `site` |
 
-Then change `<link rel="canonical">` and the `og:image` / `twitter:image` URLs in `index.html`
-to the new address (for example `https://opnlocal.pages.dev/`).
+The canonical URL and the `og:image` / `twitter:image` URLs in `index.html` point at this address;
+change them if the site moves.
+
+## Deploy to GitHub Pages instead
+
+Repository *Settings → Pages → Source: GitHub Actions*, then a workflow that copies this folder
+plus `docs/images/demo.gif` into one directory and uploads it with `actions/upload-pages-artifact`
+and `actions/deploy-pages`.

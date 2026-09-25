@@ -11,7 +11,7 @@ up 30×; everything else is real time.*
 
 ## Download
 
-Website: **[milandanilovic.github.io/opnlocal](https://milandanilovic.github.io/opnlocal/)**
+Website: **[opnlocal.pages.dev](https://opnlocal.pages.dev/)**
 
 Click the link for your device. It downloads the newest version straight away; no account needed.
 
@@ -55,7 +55,7 @@ quantization. opnlocal is for people who don't want to make those choices.
   running on your computer.
 - **It's open source** (Apache-2.0), like Ollama, Jan and GPT4All. The LM Studio app isn't.
 
-The trade-off: a small list of 9 tested models instead of all of Hugging Face. You can still
+The trade-off: a small list of 13 tested models instead of all of Hugging Face. You can still
 import your own `.gguf` file in Settings → Advanced.
 
 ## Privacy
@@ -65,7 +65,7 @@ downloads you start (huggingface.co), and a signed model list checked at most on
 (github.com; you can turn it off). No accounts, analytics, crash reports or telemetry. There is
 no local server and no open port. Details: [docs/PRIVACY.md](docs/PRIVACY.md).
 
-## What's been tested (v0.1.0)
+## What's been tested (v0.2.1)
 
 Honest status. Help testing on real phones and Macs is very welcome.
 
@@ -77,7 +77,7 @@ Honest status. Help testing on real phones and Macs is very welcome.
 | macOS | Automated build machine (virtual Mac): detects hardware, generates text with Metal | **No real Mac yet** |
 | iOS | iPhone simulator: detects hardware, generates text | **No physical iPhone yet** |
 
-All 9 models in the catalog were downloaded, speed-tested and chatted with on the Windows PC:
+All 13 models in the catalog were downloaded, speed-tested and chatted with on the Windows PC:
 [catalog/VERIFICATION.md](catalog/VERIFICATION.md).
 
 ## For developers
