@@ -817,15 +817,21 @@ impl Engine {
 
     /// Reads an attached document (any platform: the caller passes the bytes).
     pub fn extract_document(&self, name: &str, bytes: &[u8]) -> Result<Attachment, EngineError> {
-        let ext = Path::new(name)
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or_default()
-            .to_ascii_lowercase();
         if bytes.len() as u64 > docs::MAX_FILE_BYTES {
             return Err(EngineError::Document { message: docs::DocError::TooLarge.to_string() });
         }
         let document = |e: docs::DocError| EngineError::Document { message: e.to_string() };
+        // Without an extension in the name (Android's picker often gives just an id, like
+        // "image:1234"), the type comes from the bytes and the name gets the extension.
+        let named = Path::new(name).extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase);
+        let (ext, name) = match named {
+            Some(ext) => (ext, name.to_string()),
+            None => {
+                let sniffed = docs::sniff_extension(bytes).ok_or_else(|| document(docs::DocError::Unsupported))?;
+                (sniffed.to_string(), format!("{name}.{sniffed}"))
+            }
+        };
+        let name = name.as_str();
         if !ocr::IMAGE_EXTENSIONS.contains(&ext.as_str()) {
             let text = docs::extract_bytes(&ext, bytes).map_err(document)?;
             return Ok(Attachment { name: name.to_string(), text, image: None });

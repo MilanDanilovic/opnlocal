@@ -33,6 +33,24 @@ pub fn extract(path: &Path) -> Result<String, DocError> {
     extract_bytes(&ext, &bytes)
 }
 
+/// The file type from its first bytes, as an extension. Android's picker hands over content
+/// URIs without a file name (`image:1234`), so the name can't be trusted to carry one.
+pub fn sniff_extension(bytes: &[u8]) -> Option<&'static str> {
+    let starts = |prefix: &[u8]| bytes.starts_with(prefix);
+    Some(match bytes {
+        _ if starts(b"%PDF") => "pdf",
+        _ if starts(b"\x89PNG") => "png",
+        _ if starts(b"\xFF\xD8\xFF") => "jpg",
+        _ if starts(b"GIF8") => "gif",
+        _ if starts(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") => "webp",
+        _ if starts(b"BM") => "bmp",
+        _ if starts(b"II*\0") || starts(b"MM\0*") => "tiff",
+        _ if starts(b"PK\x03\x04") => "docx",
+        _ if std::str::from_utf8(bytes).is_ok() => "txt",
+        _ => return None,
+    })
+}
+
 pub fn extract_bytes(ext: &str, bytes: &[u8]) -> Result<String, DocError> {
     let text = match ext {
         "txt" | "md" | "markdown" | "csv" | "log" => String::from_utf8_lossy(bytes).into_owned(),
@@ -160,6 +178,17 @@ mod tests {
             extract_bytes("docx", b"not a zip"),
             Err(DocError::Unreadable(_))
         ));
+    }
+
+    #[test]
+    fn file_types_are_recognised_from_their_bytes() {
+        assert_eq!(sniff_extension(&minimal_pdf("x")), Some("pdf"));
+        assert_eq!(sniff_extension(include_bytes!("../ocr/sample.png")), Some("png"));
+        assert_eq!(sniff_extension(b"\xFF\xD8\xFF\xE0"), Some("jpg"));
+        assert_eq!(sniff_extension(b"RIFF\0\0\0\0WEBPVP8 "), Some("webp"));
+        assert_eq!(sniff_extension(&docx("<w:p/>")), Some("docx"));
+        assert_eq!(sniff_extension("Plain notes, čćž".as_bytes()), Some("txt"));
+        assert_eq!(sniff_extension(&[0, 159, 146, 150]), None);
     }
 
     #[test]
