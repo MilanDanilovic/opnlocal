@@ -4,7 +4,7 @@
 opnlocal checks what your computer or phone can handle, picks a model that fits, downloads
 it, measures how fast it really runs, and lets you chat. Your chats never leave the device.
 
-![opnlocal on a Windows PC: device check, model picks, download, speed test, then a chat](docs/images/demo.gif)
+![opnlocal on a Windows PC: device check, model picks, download, speed test, then a chat](site/demo.gif)
 
 *The real app on a Windows PC with a fresh install. The 5.7 GB download and the speed test are sped
 up 30×; everything else is real time.*
