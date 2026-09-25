@@ -28,7 +28,7 @@ vulkan=""
 while read -r file; do
   path=${file#"$root"}
   base=$(basename "$file")
-  case "$base" in libggml* | libllama*) continue ;; esac # ours (the opnlocal .deb, if installed, is skipped too)
+  case "$base" in libggml* | libllama* | libmtmd*) continue ;; esac # ours: llama.cpp (the opnlocal .deb, if installed, is skipped too)
   case "$path" in
     /usr/share/*) found=$(dpkg -S "$path" 2> /dev/null || true) ;;
     *) found=$(dpkg -S "*/$base" 2> /dev/null | grep -E ': /(usr/)?lib/x86_64-linux-gnu/' || true) ;;
