@@ -65,7 +65,7 @@ downloads you start (huggingface.co), and a signed model list checked at most on
 (github.com; you can turn it off). No accounts, analytics, crash reports or telemetry. There is
 no local server and no open port. Details: [docs/PRIVACY.md](docs/PRIVACY.md).
 
-## What's been tested (v0.2.1)
+## What's been tested (v0.2.2)
 
 Honest status. Help testing on real phones and Macs is very welcome.
 
