@@ -141,6 +141,25 @@ h1 {
 .compare ul { margin: 0.9rem 0 0; padding-left: 1.2rem; display: grid; gap: 0.45rem; }
 .compare li::marker { color: var(--accent); }
 
+/* Downloads table */
+.btn.small { min-height: 40px; padding: 0.45rem 0.95rem; font-size: 0.93rem; margin: 0.15rem 0.25rem 0.15rem 0; }
+.dl-table { width: 100%; border-collapse: collapse; margin-top: 2rem; font-size: 0.95rem; }
+.dl-table th, .dl-table td { text-align: left; vertical-align: top; padding: 0.9rem 0.9rem 0.9rem 0; border-top: 1px solid var(--border); }
+.dl-table thead th { border-top: 0; color: var(--text-2); font-weight: 600; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.06em; padding-top: 0; }
+.dl-table tbody th { font-weight: 600; width: 26%; }
+.dl-table td:nth-child(2) { width: 24%; white-space: nowrap; }
+.dl-table td:last-child { color: var(--text-2); }
+.dl-table em { font-style: normal; font-weight: 600; color: var(--text); }
+.downloads .fine { margin-top: 1.2rem; }
+.downloads .fine a { color: var(--accent-strong); }
+@media (max-width: 720px) {
+  .dl-table thead { position: absolute; left: -9999px; }
+  .dl-table tr { display: block; padding: 1rem 0; border-top: 1px solid var(--border); }
+  .dl-table th, .dl-table td { display: block; border: 0; padding: 0.2rem 0; width: auto; white-space: normal; }
+  .dl-table tbody th { font-size: 1.05rem; width: auto; }
+  .dl-table td:nth-child(2) { padding: 0.5rem 0; }
+}
+
 /* Privacy */
 .privacy h2 { max-width: 22ch; }
 .plain { margin: 1.4rem 0; padding-left: 1.2rem; display: grid; gap: 0.5rem; max-width: var(--measure); }
