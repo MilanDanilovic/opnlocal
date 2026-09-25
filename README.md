@@ -90,6 +90,13 @@ All 13 models in the catalog were downloaded, speed-tested and chatted with on t
 The engine is Rust ([`crates/engine`](crates/engine)); the app is Tauri 2 with a Svelte 5 UI
 ([`app`](app)); models run in-process through llama.cpp on every platform.
 
+## Support
+
+opnlocal is free and open source. If it saves you time or makes local AI easier to use, you can
+support development with a coffee.
+
+[![Support us on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/opnlocal)
+
 ## License
 
 [Apache License 2.0](LICENSE). Copyright 2026 Milan Danilovic. Third-party components are listed

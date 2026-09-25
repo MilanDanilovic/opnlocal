@@ -141,6 +141,8 @@ jobs:
         run: |
           npm ci
           npx tauri ios init --ci
+          # The generated project keeps Tauri's placeholder icon; use opnlocal's (same names).
+          cp src-tauri/icons/ios/*.png src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset/
           bash ../scripts/ios-patch-project.sh
       - name: Build for the iOS simulator
         working-directory: app
