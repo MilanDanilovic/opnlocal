@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 3,
+  "version": 4,
   "published": "2026-09-25",
   "models": [
     {
@@ -44,6 +44,44 @@
           "top_k": 20,
           "min_p": 0.0
         }
+      },
+      "min_app_version": "0.1.0"
+    },
+    {
+      "id": "lfm2.5-1.2b",
+      "name": "LFM2.5 1.2B",
+      "publisher": "Liquid AI",
+      "summary": "The lightest pick: quick answers on older or low-memory phones. Keep questions simple.",
+      "scores": {
+        "everyday": 2,
+        "coding": 1,
+        "writing": 1,
+        "documents": 1
+      },
+      "license": {
+        "id": "LFM-Open-1.0",
+        "name": "LFM Open License v1.0",
+        "url": "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct/blob/main/LICENSE",
+        "requires_acceptance": true,
+        "summary": "Free for personal and non-commercial use. A business may use it commercially only if its yearly revenue is under US$10 million. Registered non-profits may use it for non-commercial and research purposes regardless of size."
+      },
+      "file": {
+        "repo": "LiquidAI/LFM2.5-1.2B-Instruct-GGUF",
+        "revision": "8ed288026e23958ad9dfa92d53ed773a8eee7125",
+        "path": "LFM2.5-1.2B-Instruct-Q4_K_M.gguf"
+      },
+      "chat": {
+        "reasoning": "think_tags",
+        "thinking": {
+          "kind": "unsupported"
+        },
+        "sampling": {
+          "temperature": 0.1,
+          "top_p": 1.0,
+          "top_k": 50,
+          "min_p": 0.0
+        },
+        "thinking_sampling": null
       },
       "min_app_version": "0.1.0"
     },
@@ -228,6 +266,45 @@
       "min_app_version": "0.1.0"
     },
     {
+      "id": "gemma-4-e4b",
+      "name": "Gemma 4 E4B",
+      "publisher": "Google",
+      "summary": "Google's mid-size model for newer phones and laptops. Natural writing, many languages, and it can look at images.",
+      "scores": {
+        "everyday": 3,
+        "coding": 3,
+        "writing": 4,
+        "documents": 3
+      },
+      "license": {
+        "id": "Apache-2.0",
+        "name": "Apache License 2.0",
+        "url": "https://ai.google.dev/gemma/docs/gemma_4_license",
+        "requires_acceptance": false,
+        "summary": null
+      },
+      "file": {
+        "repo": "google/gemma-4-E4B-it-qat-q4_0-gguf",
+        "revision": "4b4a2c1d584be7264f87aac328a1bc739ce81b6c",
+        "path": "gemma-4-E4B_q4_0-it.gguf"
+      },
+      "chat": {
+        "reasoning": "gemma_channel",
+        "thinking": {
+          "kind": "template_flag",
+          "variable": "enable_thinking"
+        },
+        "sampling": {
+          "temperature": 1.0,
+          "top_p": 0.95,
+          "top_k": 64,
+          "min_p": 0.0
+        },
+        "thinking_sampling": null
+      },
+      "min_app_version": "0.1.0"
+    },
+    {
       "id": "qwen3.5-9b",
       "name": "Qwen3.5 9B",
       "publisher": "Alibaba (Qwen)",
@@ -303,6 +380,45 @@
         "repo": "google/gemma-4-12B-it-qat-q4_0-gguf",
         "revision": "29d097773436b69ff9feafd636ab4cf873786537",
         "path": "mmproj-gemma-4-12b-it-qat-q4_0.gguf"
+      },
+      "chat": {
+        "reasoning": "gemma_channel",
+        "thinking": {
+          "kind": "template_flag",
+          "variable": "enable_thinking"
+        },
+        "sampling": {
+          "temperature": 1.0,
+          "top_p": 0.95,
+          "top_k": 64,
+          "min_p": 0.0
+        },
+        "thinking_sampling": null
+      },
+      "min_app_version": "0.1.0"
+    },
+    {
+      "id": "gemma-4-26b-a4b",
+      "name": "Gemma 4 26B",
+      "publisher": "Google",
+      "summary": "Google's large model that still answers quickly: only a small part of it works on each word. Needs a desktop with 32 GB of memory or a 16 GB graphics card.",
+      "scores": {
+        "everyday": 4,
+        "coding": 4,
+        "writing": 5,
+        "documents": 4
+      },
+      "license": {
+        "id": "Apache-2.0",
+        "name": "Apache License 2.0",
+        "url": "https://ai.google.dev/gemma/docs/gemma_4_license",
+        "requires_acceptance": false,
+        "summary": null
+      },
+      "file": {
+        "repo": "google/gemma-4-26B-A4B-it-qat-q4_0-gguf",
+        "revision": "d1c082be9cf3c8a514acf63b8761f4b41935842e",
+        "path": "gemma-4-26B_q4_0-it.gguf"
       },
       "chat": {
         "reasoning": "gemma_channel",
@@ -406,6 +522,50 @@
         },
         "thinking_sampling": {
           "temperature": 1.0,
+          "top_p": 0.95,
+          "top_k": 20,
+          "min_p": 0.0
+        }
+      },
+      "min_app_version": "0.1.0"
+    },
+    {
+      "id": "qwen3.8-27b",
+      "name": "Qwen3.8 27B",
+      "publisher": "Alibaba (Qwen)",
+      "summary": "The strongest model here for coding, writing and long documents. Needs a desktop with 32 GB of memory or a 16 GB graphics card; slower than the others.",
+      "scores": {
+        "everyday": 5,
+        "coding": 5,
+        "writing": 5,
+        "documents": 5
+      },
+      "license": {
+        "id": "Apache-2.0",
+        "name": "Apache License 2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0",
+        "requires_acceptance": false,
+        "summary": null
+      },
+      "file": {
+        "repo": "ggml-org/Qwen3.8-27B-GGUF",
+        "revision": "efbb3b1f70a21d97fd4495240648405f7228554f",
+        "path": "Qwen3.8-27B-Q4_K_M.gguf"
+      },
+      "chat": {
+        "reasoning": "think_tags",
+        "thinking": {
+          "kind": "template_flag",
+          "variable": "enable_thinking"
+        },
+        "sampling": {
+          "temperature": 0.7,
+          "top_p": 0.8,
+          "top_k": 20,
+          "min_p": 0.0
+        },
+        "thinking_sampling": {
+          "temperature": 0.6,
           "top_p": 0.95,
           "top_k": 20,
           "min_p": 0.0

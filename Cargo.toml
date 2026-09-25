@@ -12,3 +12,10 @@ publish = false
 lto = "thin"
 codegen-units = 1
 strip = true
+
+# llama-cpp-sys-2 0.1.157 plus one fix: its build script panics on Linux when linking the
+# unversioned lib*.so symlinks into target/release/deps ("File exists" behind a dangling
+# symlink). The branch holds the crate exactly as published (the full repository has paths too
+# long for Windows) plus that fix. Drop this once the fix is released upstream.
+[patch.crates-io]
+llama-cpp-sys-2 = { git = "https://github.com/MilanDanilovic/llama-cpp-rs", rev = "b549af78cf4be7ed325125a71d2cd1b17d3f7cb4" }

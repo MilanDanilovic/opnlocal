@@ -1,6 +1,6 @@
 # Catalog verification
 
-Catalog version 2. Run on Windows 11 Pro, AMD Ryzen 7 7700X 8-Core Processor (31 GiB RAM), AMD Radeon RX 7800 XT (15 GiB), AMD Radeon(TM) Graphics (15 GiB).
+Catalog version 4 (the first nine models were verified for version 2 on the same machine; the last four for version 4). Run on Windows 11 Pro, AMD Ryzen 7 7700X 8-Core Processor (31 GiB RAM), AMD Radeon RX 7800 XT (15 GiB), AMD Radeon(TM) Graphics (15 GiB).
 
 Every model was downloaded from its pinned Hugging Face commit, checked against its sha256, loaded by the app's engine, benchmarked, and asked two questions (thinking off, then "Think harder").
 
@@ -17,3 +17,7 @@ Every model was downloaded from its pinned Hugging Face commit, checked against 
 | Gemma 4 12B | Gpu (48 layers) | 48.8 | 53.4 | 0.3 s | 8.1 GiB | 19.4 GiB | ✓ Paris | ✓ 391 (thought first) |
 | gpt-oss 20B | Gpu (24 layers) | 32.7 | 43.1 | 0.7 s | 12.4 GiB | 16.3 GiB | ✓ Paris | ✓ 391 (thought first) |
 | Qwen3.6 35B | Gpu (40 layers) | 17.2 | 19.1 | 13.4 s | 20.1 GiB | 19.8 GiB | ✓ Paris | ✓ 391 (thought first) |
+| LFM2.5 1.2B | Gpu (16 layers) | 360.3 | 446.6 | 0.5 s | 1.2 GiB | 1.8 GiB | ✓ Paris | ✗ 6185 (no thinking shown) |
+| Gemma 4 E4B | Gpu (42 layers) | 92.9 | 103.9 | 0.8 s | 5.8 GiB | 6.7 GiB | ✓ Paris | ✓ 391 (thought first) |
+| Gemma 4 26B | Mixed (30 layers) | 42.8 | 47.3 | 2.6 s | 14.6 GiB | 30.2 GiB | ✓ Paris | ✓ 391 (thought first) |
+| Qwen3.8 27B | Mixed (49 layers) | 4.5 | 5.1 | 6.0 s | 19.1 GiB | 33.7 GiB | ✓ Paris | ✓ 391 (thought first) |
