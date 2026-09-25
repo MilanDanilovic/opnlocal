@@ -72,7 +72,7 @@ Honest status. Help testing on real phones and Macs is very welcome.
 | Platform | Tested for real | Not tested yet |
 |---|---|---|
 | Windows | Installed build, whole journey (download, speed test, chat) on an AMD RX 7800 XT | NVIDIA and Intel graphics, Windows 10 |
-| Android | Android emulator: whole journey | **No physical phone yet** |
+| Android | Android emulator: whole journey | Whole journey tested on Samsung S26 Ultra |
 | Linux | Automated build machine: installs, detects hardware, generates text | A desktop with a graphics card |
 | macOS | Automated build machine (virtual Mac): detects hardware, generates text with Metal | **No real Mac yet** |
 | iOS | iPhone simulator: detects hardware, generates text | **No physical iPhone yet** |
